@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 
 import pandas as pd
+import numpy as np
 import yaml
 from openpyxl.styles import Font
 
@@ -27,7 +28,8 @@ with pd.ExcelWriter(sys.argv[2] + '.xlsx', engine='xlsxwriter') as writer:
                 if df.at[name, model] == -1:
                     res = pd.read_csv(v / "metrics.csv", index_col=0)
                     col = list(filter(lambda x: "val/" in x and metric in x, res.columns))
-                    df.at[name, model] = float(res[col].dropna().max().iloc[0])
+                    if col != []:
+                        df.at[name, model] = float(np.nanmax(res[col].values))
         df.to_excel(writer, sheet_name=metric)
 
         workbook = writer.book
