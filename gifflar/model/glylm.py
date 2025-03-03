@@ -1,11 +1,12 @@
+from pathlib import Path
 import torch
 from transformers import EsmModel
 
 from gifflar.data.hetero import HeteroDataBatch
 from gifflar.model.downstream import DownstreamGGIN
 from gifflar.model.utils import get_prediction_head
-from gifflar.tokenize.pretokenize import GlycoworkPreTokenizer, GrammarPreTokenizer
 from gifflar.tokenize.tokenizer import GIFFLARTokenizer
+from gifflar.train_lm import PRE_TOKENIZERS
 
 def pipeline(tokenizer, glycan_lm, iupac):
     # print(iupac)
@@ -16,20 +17,24 @@ def pipeline(tokenizer, glycan_lm, iupac):
         with torch.no_grad():
             return glycan_lm(input_ids, attention).last_hidden_state
     except Exception as e:
-        # raise e
-        return None
+        raise e
+        # return None
 
 
 class GlycanLM(DownstreamGGIN):
-    def __init__(self, token_file, model_dir, hidden_dim: int, *args, **kwargs):
+    def __init__(self, token_file, model_dir, hidden_dim: int, pre_tokenizer: str, *args, **kwargs):
         super().__init__(feat_dim=1, hidden_dim=1, *args, **kwargs)
         del self.convs
 
-        pretokenizer = GrammarPreTokenizer() if "glyles" in token_file else GlycoworkPreTokenizer()
-        mode = "BPE" if "bpe" in token_file else "WP"
-        print(pretokenizer, mode)
-        tokenizer = GIFFLARTokenizer(pretokenizer, mode)
-        tokenizer.load(token_file)
+        pretokenizer = PRE_TOKENIZERS[pre_tokenizer]()
+        
+        if Path(token_file).exists():
+            mode = "BPE" if "bpe" in token_file else "WP"
+            tokenizer = GIFFLARTokenizer(pretokenizer, mode)
+            tokenizer.load(token_file)
+        else:
+            tokenizer = GIFFLARTokenizer(pretokenizer, "NONE")
+        
         glycan_lm = EsmModel.from_pretrained(model_dir)
         self.encoder = lambda x: pipeline(tokenizer, glycan_lm, x)
         self.head, self.loss, self.metrics = get_prediction_head(hidden_dim, self.output_dim, self.task)
