@@ -26,7 +26,6 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: '3.11'
-          miniforge-variant: Mambaforge
           miniforge-version: latest
           activate-environment: MPP
           use-mamba: true
@@ -42,11 +41,7 @@ jobs:
         run: |
           cd tests
           pytest
-#          pytest -m "not todo and not issue" --cov=../datasail/ --cov-report=xml
-
-#      - name: Upload coverage to Codecov
-#        uses: codecov/codecov-action@v3
-#        with:
+  
 #          token: ${{ secrets.CODECOV_TOKEN }}
 #          fail_ci_if_error: false
 #          files: coverage.xml
