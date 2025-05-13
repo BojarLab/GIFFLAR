@@ -1,0 +1,79 @@
+seed: 42
+root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data
+logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_spec_mse
+datasets:
+  - name: Spectrum
+    task: spectrum
+pre-transforms:
+  GIFFLARTransform:
+  GNNGLYTransform:
+  ECFPTransform:
+  SweetNetTransform:
+  RGCNTransform:
+model:
+  # - name: rf
+  #   n_estimators: 500
+  #   n_jobs: -1
+  #   random_state: 42
+  # - name: svm
+  #   random_state: 42
+  # - name: xgb
+  #   random_state: 42
+  - name: mlp
+    feat_dim: 1024
+    hidden_dim: 1024
+    batch_size: 256
+    num_layers: 3
+    epochs: 3
+    patience: 30
+    learning_rate: 0.001
+    optimizer: Adam
+  # - name: sweetnet
+  #   feat_dim: 128
+  #   hidden_dim: 1024
+  #   batch_size: 512
+  #   num_layers: 16
+  #   epochs: 100
+  #   patience: 30
+  #   learning_rate: 0.001
+  #   optimizer: Adam
+  #   suffix:
+  # - name: gnngly
+  #   feat_dim: 128
+  #   hidden_dim: 1024
+  #   batch_size: 512
+  #   num_layers: 8
+  #   epochs: 100
+  #   patience: 30
+  #   learning_rate: 0.001
+  #   optimizer: Adam
+  #   suffix:
+  # - name: rgcn
+  #   feat_dim: 128
+  #   hidden_dim: 1024
+  #   batch_size: 256
+  #   num_layers: 8
+  #   epochs: 100
+  #   learning_rate: 0.001
+  #   optimizer: Adam
+  #   suffix:
+  # - name: gifflar
+  #   feat_dim: 128
+  #   hidden_dim: 1024
+  #   batch_size: 256
+  #   num_layers: 8
+  #   epochs: 100
+  #   learning_rate: 0.001
+  #   optimizer: Adam
+  #   pooling: global_mean
+  #   suffix: _128_8_gp
+  # - name: glylm
+  #   token_file: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/unique/GlyLM/bpe_lib_2500.pkl
+  #   model_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/unique/GlyLM/bpe_lib_2500_t6/checkpoint-5927260
+  #   pre_tokenizer: lib
+  #   hidden_dim: 320
+  #   epochs: 100
+  #   learning_rate: 0.001
+  #   batch_size: 256
+  #   optimizer: Adam
+  #   suffix: _bpe_lib_25_t6_20

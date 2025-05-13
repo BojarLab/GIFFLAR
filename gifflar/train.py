@@ -106,7 +106,7 @@ def fit(**kwargs: Any) -> None:
     ]:
         labels = torch.tensor(
             yoh if data_config["task"] == "multilabel" else y,
-            dtype=torch.long if data_config["task"] != "regression" else torch.float
+            dtype=torch.long if data_config["task"] not in {"regression", "spectrum"} else torch.float
         )
 
         preds = torch.tensor(model.predict_proba(X) if data_config["task"] in {"classification", "multilabel"} else
@@ -124,7 +124,7 @@ def fit(**kwargs: Any) -> None:
             preds = preds[:, :, 1].T
         elif data_config["num_classes"] == 1:
             preds = preds.reshape(labels.shape)
-        else:
+        elif data_config["task"] != "spectrum":
             preds = preds.reshape(-1)
             labels = labels.reshape(-1)
 
@@ -150,6 +150,8 @@ def train(**kwargs: Any) -> None:
         ],
         max_epochs=kwargs["model"]["epochs"],
         logger=logger,
+        limit_train_batches=3,
+        limit_val_batches=3,
         # accelerator="cpu",
     )
     start = time.time()

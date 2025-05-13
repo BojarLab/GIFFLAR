@@ -15,7 +15,7 @@ from tqdm import tqdm
 from gifflar.data.utils import GlycanStorage
 
 
-PROCESS_CHUNK_SIZE = 100_000
+PROCESS_CHUNK_SIZE = 10_000
 
 class GlycanOnDiskDataset(OnDiskDataset):
     def __init__(
@@ -267,7 +267,7 @@ class DownstreamGDs(GlycanDataset):
 
         # If the label is not given, use all columns except IUPAC and split
         if "label" not in self.dataset_args:
-            self.dataset_args["label"] = [x for x in df.columns if x not in {"IUPAC", "split"}]
+            self.dataset_args["label"] = [x for x in df.columns if x not in {"IUPAC", "split", "red_mz"}]
 
         # Compute the number of classes
         if self.dataset_args["task"] != "classification":
@@ -290,13 +290,15 @@ class DownstreamGDs(GlycanDataset):
             d = gs.query(row["IUPAC"])
             if d is None:
                 continue
-            if self.dataset_args["task"] == "regression" or len(self.dataset_args["label"]) == 1:
+            if self.dataset_args["task"] in {"regression", "spectrum"} or len(self.dataset_args["label"]) == 1:
                 d["y"] = torch.tensor(list(row[self.dataset_args["label"]].values)).reshape(1, -1)
             elif len(self.dataset_args["label"]) > 1:
                 d["y_oh"] = torch.tensor([int(x) for x in row[self.dataset_args["label"]]]).reshape(1, -1)
                 if self.dataset_args["task"] != "multilabel":
                     d["y"] = d["y_oh"].argmax().item()
             d["ID"] = i
+            if hasattr(row, "red_mz"):
+                d["red_mz"] = row["red_mz"]
             data.append(d)
 
         gs.close()

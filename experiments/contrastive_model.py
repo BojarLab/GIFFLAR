@@ -110,7 +110,7 @@ class ContrastLGIModel(LGI_Model):
                 fwd_dict["loss"] = nn.BCEWithLogitsLoss()(fwd_dict["preds"], fwd_dict["labels"].float())
                 self.add_metrics[dataloader_idx - 1][stage].update(fwd_dict["preds"], fwd_dict["labels"])
                 self.log(f"{stage}/{name}/loss", fwd_dict["loss"], batch_size=len(fwd_dict["preds"]), add_dataloader_idx=False)
-            elif task == "regression":
+            elif task in {"regression", "spectrum"}:
                 pass
             else:
                 raise ValueError(f"Task {task} is not supported")

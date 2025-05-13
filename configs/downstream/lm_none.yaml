@@ -2,25 +2,15 @@ seed: 42
 root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data
 logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs
 datasets:
-  - name: Immunogenicity
-    task: classification
-  - name: Glycosylation
-    task: classification
-  - name: Tissue
-    task: multilabel
+  #- name: Immunogenicity
+  #  task: classification
+  #- name: Glycosylation
+  #  task: classification
+  #- name: Tissue
+  #  task: multilabel
   - name: Taxonomy_Domain
     task: multilabel
 model:
-  - name: glylm
-    pre_tokenizer: char
-    token_file: none
-    model_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/unique/GlyLM/none_char_0_t6/checkpoint-5922440
-    hidden_dim: 320
-    epochs: 100
-    learning_rate: 0.001
-    batch_size: 256
-    optimizer: Adam
-    suffix: _none_char_t6_20
   - name: glylm
     pre_tokenizer: glyles
     token_file: none
@@ -28,16 +18,16 @@ model:
     hidden_dim: 320
     epochs: 100
     learning_rate: 0.001
-    batch_size: 256
+    batch_size: 128
     optimizer: Adam
     suffix: _none_glyles_t6_20
   - name: glylm
     pre_tokenizer: lib
     token_file: none
-    model_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/unique/GlyLM/none_lib_2_t6/checkpoint-5927260
+    model_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/unique/GlyLM/none_lib_2373_t6/checkpoint-5927260
     hidden_dim: 320
     epochs: 100
     learning_rate: 0.001
-    batch_size: 256
+    batch_size: 128
     optimizer: Adam
     suffix: _none_lib_t6_20

@@ -15,15 +15,11 @@ from torch_geometric import seed_everything
 from gifflar.data.modules import LGI_GDM, ConstrastiveGDM
 from gifflar.model.baselines.sweetnet import SweetNetLightning
 from gifflar.model.downstream import DownstreamGGIN
+from gifflar.model.glylm import GlycanLM
 from gifflar.pretransforms import get_pretransforms
 from gifflar.utils import read_yaml_config, hash_dict
 from experiments.lgi_model import LGI_Model
 from experiments.contrastive_model import ContrastLGIModel
-
-GLYCAN_ENCODERS = {
-    "gifflar": DownstreamGGIN,
-    "sweetnet": SweetNetLightning,
-}
 
 
 def collect_metrics(path: Path):
@@ -94,11 +90,11 @@ def train(contrastive: bool = False, ckpt_file: Path | None = None, **kwargs):
     logger = CSVLogger(kwargs["logs_dir"], name=LOG_SUFFIX + glycan_model_name + lectin_model_name)
     logger.log_hyperparams(kwargs)
 
-    glycan_encoder = GLYCAN_ENCODERS[kwargs["model"]["glycan_encoder"]["name"]](**kwargs["model"]["glycan_encoder"])
     model = MODEL(
-        glycan_encoder,
-        kwargs["model"]["lectin_encoder"]["name"],
-        kwargs["model"]["lectin_encoder"]["layer_num"],
+        glycan_encoder_name=kwargs["model"]["glycan_encoder"]["name"],
+        glycan_encoder_args=kwargs["model"]["glycan_encoder"],
+        lectin_encoder=kwargs["model"]["lectin_encoder"]["name"],
+        le_layer_num=kwargs["model"]["lectin_encoder"]["layer_num"],
         add_tasks = add_tasks,
         **kwargs,
     )
@@ -124,8 +120,8 @@ def train(contrastive: bool = False, ckpt_file: Path | None = None, **kwargs):
         logger=logger,
         max_epochs=kwargs["model"]["epochs"],
         accelerator="gpu",
-        # limit_train_batches=10,
-        # limit_val_batches=10,
+        limit_train_batches=10,
+        limit_val_batches=10,
     )
     start = time.time()
     trainer.fit(
@@ -136,49 +132,6 @@ def train(contrastive: bool = False, ckpt_file: Path | None = None, **kwargs):
     )
     print("Training took", time.time() - start, "s")
     collect_metrics(Path(logger.log_dir)).to_csv(Path(logger.log_dir) / "comb_metrics.csv", index=False)
-
-
-def train_contrastive(**kwargs):
-    kwargs["pre-transforms"] = {"GIFFLARTransform": "", "SweetNetTransform": ""}
-    kwargs["hash"] = hash_dict(kwargs["pre-transforms"])
-    seed_everything(kwargs["seed"])
-
-    datamodule = ConstrastiveGDM(
-        root=kwargs["root_dir"], filename=kwargs["origin"], hash_code=kwargs["hash"],
-        batch_size=kwargs["model"].get("batch_size", 1), transform=None,
-        pre_transform=get_pretransforms("", **(kwargs["pre-transforms"] or {})),
-    )
-
-    # set up the logger
-    glycan_model_name = kwargs["model"]["glycan_encoder"]["name"] + (
-            kwargs["model"]["glycan_encoder"].get("suffix", None) or "")
-    lectin_model_name = kwargs["model"]["lectin_encoder"]["name"] + (
-            kwargs["model"]["lectin_encoder"].get("suffix", None) or "")
-    logger = CSVLogger(kwargs["logs_dir"], name="LGI_" + glycan_model_name + lectin_model_name)
-    logger.log_hyperparams(kwargs)
-
-    glycan_encoder = GLYCAN_ENCODERS[kwargs["model"]["glycan_encoder"]["name"]](**kwargs["model"]["glycan_encoder"])
-    model = ContrastLGIModel(
-        glycan_encoder,
-        kwargs["model"]["lectin_encoder"]["name"],
-        kwargs["model"]["lectin_encoder"]["layer_num"],
-        **kwargs,
-    )
-    model.to("cuda")
-
-    trainer = Trainer(
-        callbacks=[
-            ModelCheckpoint(dirpath=Path(kwargs["logs_dir"]) / f"LGI_{glycan_model_name}{lectin_model_name}" / "weights", monitor="val/loss"),
-            RichProgressBar(), 
-            RichModelSummary(),
-        ],
-        logger=logger,
-        max_epochs=kwargs["model"]["epochs"],
-        accelerator="gpu",
-    )
-    start = time.time()
-    trainer.fit(model, datamodule)
-    print("Training took", time.time() - start, "s")
 
 
 def main(mode, config):

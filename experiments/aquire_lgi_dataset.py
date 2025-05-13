@@ -1,5 +1,7 @@
+from pathlib import Path
 import pickle
 import random
+import pandas as pd
 
 from tqdm import tqdm
 import numpy as np
@@ -67,6 +69,21 @@ def contrastive_data(decoy_threshold: float = 0, max_num_decoys: int = 4, norm_p
         pickle.dump(triplets, f)
 
 
+def clean_unilectin():
+    BASE = Path("results")
+    full = pd.read_csv(BASE / "unilectin.tsv", sep="\t")
+    clean = pd.read_csv(BASE / "unilectin_glycans.csv")
+    mapping = dict(full[["PDB_ID", "seq"]].values)
+    clean["seq"] = clean["pdb_id"].map(mapping)
+    clean = clean[["supposed_iupac", "seq", "pdb_id"]]
+    clean.dropna(inplace=True)
+    clean.rename(columns={"supposed_iupac": "IUPAC", "pdb_id": "PDB_ID"}, inplace=True)
+    clean["split"] = np.random.choice(["val", "test"], len(clean), p=[2/3, 1/3])
+    clean["y"] = 1
+    clean.to_csv(BASE / "unilectin_clean.tsv", sep="\t", index=False)
+
+
 if __name__ == '__main__':
     # classical_data()
-    contrastive_data()
+    # contrastive_data()
+    clean_unilectin()

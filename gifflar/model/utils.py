@@ -7,12 +7,54 @@ from torch_geometric.nn.inits import reset
 from torch_geometric.utils import softmax
 from torch_geometric.nn import GINConv, global_mean_pool
 from torch_scatter import scatter_add
+from torchmetrics import CosineSimilarity, KLDivergence, MetricCollection
 
 from gifflar.data.utils import GlycanStorage
+from gifflar.metrics import ModifiedCosineSimilarity
 from gifflar.utils import get_metrics
 
 
-class LectinStorage(GlycanStorage):
+class EmbeddingStorage(GlycanStorage):
+    def __init__(self, encoder, name: str, path: str | None = None):
+        """
+        Initialize the wrapper around a dict.
+
+        Args:
+        """
+        if not name.endswith(".pkl"):
+            name += ".pkl"
+        self.path = Path(path or "data") / name
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        
+        self.encoder = encoder
+        self.data = self._load()
+
+    def query(self, query: str) -> torch.Tensor:
+        if query not in self.data:
+            try:
+                self.data[query] = self.encoder(query).mean(dim=1)  # May be hard-coded to GlyLM encoders?! Encoder output has to be a tensor of token embeddings
+            except Exception as e:
+                print(e)
+                self.data[query] = None
+
+        return self.data[query]
+
+    def batch_query(self, queries) -> torch.Tensor:
+        results = [self.query(query) for query in queries]
+        dummy = None
+        for x in results:
+            if x is not None:
+                dummy = torch.zeros_like(x)
+                break
+        return torch.stack([dummy if res is None else res for res in results])
+
+    def to(self, device):
+        if hasattr(self.encoder, "to"):
+            self.encoder.to(device)
+        return self
+
+
+class LectinStorage(EmbeddingStorage):
     def __init__(self, encoder, lectin_encoder: str, le_layer_num: int, path: str | None = None):
         """
         Initialize the wrapper around a dict.
@@ -21,30 +63,7 @@ class LectinStorage(GlycanStorage):
             path: Path to the directory. If there's a lectin_storage.pkl, it will be used to fill this object,
                 otherwise, such file will be created.
         """
-        self.path = Path(path or "data") / f"{lectin_encoder}_{le_layer_num}.pkl"
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        
-        self.encoder = encoder
-        self.data = self._load()
-
-    def query(self, aa_seq: str) -> torch.Tensor:
-        if aa_seq not in self.data:
-            try:
-                self.data[aa_seq] = self.encoder(aa_seq)
-            except Exception as e:
-                print(e)
-                self.data[aa_seq] = None
-
-        return self.data[aa_seq]
-
-    def batch_query(self, aa_seqs) -> torch.Tensor:
-        results = [self.query(aa_seq) for aa_seq in aa_seqs]
-        dummy = None
-        for x in results:
-            if x is not None:
-                dummy = torch.zeros_like(x)
-                break
-        return torch.stack([dummy if res is None else res for res in results])
+        super().__init__(encoder, name=f"{lectin_encoder}_{le_layer_num}.pkl")
 
 
 class MultiGlobalAttention(nn.Module):
@@ -137,11 +156,41 @@ def get_gin_layer(input_dim: int, output_dim: int) -> GINConv:
         )
     )
 
+def get_spectrum_prediction_head(
+        input_dim: int,
+        num_predictions: int,
+        metric_prefix: str = "",
+        size: Literal["small", "medium", "large"] = "small",
+) -> tuple[nn.Module, nn.Module, dict[str, nn.Module]]:
+    head = nn.Sequential(nn.Linear(input_dim, input_dim))
+    for _ in range({"small": 1, "medium": 2, "large": 3}[size]):
+        head.append(nn.PReLU())
+        head.append(nn.Dropout(0.2))
+        head.append(nn.Linear(input_dim, input_dim))
+    head.append(nn.PReLU())
+    head.append(nn.Dropout(0.2))
+    head.append(nn.Linear(input_dim, num_predictions))
+    head.append(nn.Softmax(dim=-1))
+
+    loss = nn.CosineEmbeddingLoss()
+    
+    m = MetricCollection([
+        CosineSimilarity(reduction="mean"),
+        KLDivergence(reduction="mean", log_prob=True),
+        ModifiedCosineSimilarity(num_bins=512, tolerance=0.2),
+    ])
+    metrics = {
+        "train": m.clone(prefix="train/" + metric_prefix), 
+        "val": m.clone(prefix="val/" + metric_prefix),
+        "test": m.clone(prefix="test/" + metric_prefix)
+    }
+    return head, loss, metrics
+
 
 def get_prediction_head(
         input_dim: int,
         num_predictions: int,
-        task: Literal["regression", "classification", "multilabel"],
+        task: Literal["regression", "classification", "multilabel", "spectrum"],
         metric_prefix: str = "",
         size: Literal["small", "medium", "large"] = "small",
 ) -> tuple[nn.Module, nn.Module, dict[str, nn.Module]]:
@@ -151,12 +200,14 @@ def get_prediction_head(
     Args:
         input_dim: The input dimension of the prediction head
         num_predictions: The number of predictions to make
-        task: The task to perform, either "regression", "classification" or "multilabel"
+        task: The task to perform, either "regression", "classification", "multilabel", "spectrum"
         metric_prefix: The prefix to use for the metrics
 
     Returns:
         A tuple containing the prediction head, the loss function and the metrics for the task
     """
+    if task == "spectrum":
+        return get_spectrum_prediction_head(input_dim, num_predictions, metric_prefix, size)
     # Create the prediction head
     if size == "small":
         head = nn.Sequential(
@@ -188,9 +239,6 @@ def get_prediction_head(
             nn.Dropout(0.3),
             nn.Linear(input_dim // 4, num_predictions)
         )
-    # Add a softmax layer if the task is classification and there are multiple predictions
-    if task == "classification" and num_predictions > 1:
-        head.append(nn.Softmax(dim=-1))
 
     # Create the loss function based on the task and the number of outputs to predict
     if task == "regression":
@@ -198,6 +246,8 @@ def get_prediction_head(
     elif num_predictions == 1 or task == "multilabel":
         loss = nn.BCEWithLogitsLoss()
     else:
+        # Add a softmax layer if the task is classification and there are multiple predictions
+        head.append(nn.Softmax(dim=-1))
         loss = nn.CrossEntropyLoss()
 
     # Get the metrics for the task

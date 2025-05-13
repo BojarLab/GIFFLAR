@@ -1,11 +1,45 @@
 from typing import Type, Literal, Optional, Any
 
+import matchms
+import numpy as np
 import torch
 from torch import Tensor
 from torchmetrics import Metric
 from torchmetrics.classification import BinaryConfusionMatrix, MulticlassConfusionMatrix, MultilabelConfusionMatrix
 from torchmetrics.classification.base import _ClassificationTaskWrapper
 from torchmetrics.utilities.enums import ClassificationTask
+
+
+MAX = 3000
+MIN = 49
+
+class ModifiedCosineSimilarity(Metric):
+    """Computes the modified cosine similarity between two sets of predictions.
+    This metric is used to evaluate the similarity between predicted and true values in a batch.
+    The modified cosine similarity is a measure of similarity between two spectra, which is commonly used in mass spectrometry.
+    Args:
+        tolerance: The tolerance value for the modified cosine similarity.
+    """
+    def __init__(self, num_bins, tolerance: float = 0.2):
+        super(ModifiedCosineSimilarity, self).__init__()
+        self.mod_cos = matchms.similarity.ModifiedCosine(tolerance=tolerance)
+        self.mz = np.arange(MIN, MAX, (MAX - MIN) / num_bins)
+        self.add_state("mod_cos_sim", default=[], dist_reduce_fx="cat")
+
+    def update(self, pred: torch.Tensor, true: torch.Tensor, precursor_masses: list[float]) -> torch.Tensor:
+        assert pred.shape == true.shape, "The predictions and true values must have the same shape"
+        assert len(pred.shape) == 2, "The predictions must have dimensions (batch_size, num_predictions)"
+        assert len(true.shape) == 2, "The true values must have dimensions (batch_size, num_predictions)"
+        assert pred.shape[0] == len(precursor_masses), "The batch size the precursor masses must match those of predictions, and true values"
+        
+        self.mod_cos_sim += [float(self.mod_cos.pair(
+            matchms.Spectrum(mz=self.mz, intensities=pred[i].cpu().numpy(), metadata={"precursor_mz": precursor_masses[i]}), 
+            matchms.Spectrum(mz=self.mz, intensities=true[i].cpu().numpy(), metadata={"precursor_mz": precursor_masses[i]})
+        )["score"]) for i in range(pred.shape[0])]
+    
+    def compute(self) -> torch.Tensor:
+        """Computes the modified cosine similarity."""
+        return torch.mean(torch.tensor(self.mod_cos_sim, dtype=float))
 
 
 class BinarySensitivity(BinaryConfusionMatrix):
@@ -41,7 +75,7 @@ class MultilabelSensitivity(MultilabelConfusionMatrix):
 class Sensitivity(_ClassificationTaskWrapper):
     def __new__(
             cls: Type["Sensitivity"],
-            task: Literal["binary", "multiclass", "multilabel"],
+            task: Literal["binary", "multiclass", "multilabel", "spectrum"],
             threshold: float = 0.5,
             num_classes: Optional[int] = None,
             num_labels: Optional[int] = None,

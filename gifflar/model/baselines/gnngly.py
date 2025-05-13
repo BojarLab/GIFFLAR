@@ -29,7 +29,7 @@ class GNNGLY(DownstreamGGIN):
     """
 
     def __init__(self, feat_dim: int, hidden_dim: int, num_layers: int, output_dim: int,
-                 task: Literal["classification", "regression", "multilabel"], **kwargs: Any):
+                 task: Literal["classification", "regression", "multilabel", "spectrum"], **kwargs: Any):
         """
         Initialize the model following the papers description.
 

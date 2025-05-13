@@ -17,7 +17,7 @@ class SweetNetLightning(DownstreamGGIN):
             hidden_dim: int,
             num_layers: int,
             output_dim: int = -1,
-            task: Literal["classification", "regression", "multilabel"] | None = None,
+            task: Literal["classification", "regression", "multilabel", "spectrum"] | None = None,
             **kwargs: Any
     ):
         """

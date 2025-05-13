@@ -113,11 +113,11 @@ class GIFFLARTokenizer(PreTrainedTokenizerFast):
 
     def __call__(self, text, *args, **kwargs):
         # TODO: Make use of kwargs["padding", "truncation", and "max_length"]!
-        if self.mode == "BPE":
+        if self.mode.upper() == "BPE":
             tokens = self.bpe_tokenize(text)
-        elif self.mode == "WP":
+        elif self.mode.upper() == "WP":
             tokens = self.wordpiece_tokenize(text)
-        elif self.mode == "NONE":
+        elif self.mode.upper() == "NONE":
             tokens = self.pre_tokenizer_(text)
             if tokens is None:
                 tokens = [self.unk_token]

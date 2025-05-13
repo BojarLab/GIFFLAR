@@ -154,6 +154,24 @@ def get_glycosylation(root: Path | str) -> Path:
     return p
 
 
+def get_spectrum(root: Path | str) -> Path:
+    """
+    Download spectrum data, process it, and save it as a tsv file.
+
+    Args:
+        root: The root directory to save the data to.
+
+    Returns:
+        The filepath of the processed spectrum data.
+    """
+    root = Path(root)
+    #if not (p := root / "spectrum.tsv").exists():
+    p = root / "spectrum.tsv"
+    df = pd.read_csv(Path("/") / "scratch" / "SCRATCH_SAS" / "roman" / "Gothenburg" / "GIFFLAR" / "spectrum_pred_512_small.tsv", sep="\t")
+    df.to_csv(p, sep="\t", index=False)
+    return p
+
+
 def get_dataset(data_config: dict, root: Path | str) -> dict:
     """
     Get the dataset based on the configuration.
@@ -176,6 +194,8 @@ def get_dataset(data_config: dict, root: Path | str) -> dict:
             path = get_immunogenicity(root)
         case "Glycosylation":
             path = get_glycosylation(root)
+        case "Spectrum":
+            path = get_spectrum(root)
         case "class-1" | "class-n" | "multilabel" | "reg-1" | "reg-n":  # Used for testing
             base = Path("dummy_data")
             if not base.is_dir():

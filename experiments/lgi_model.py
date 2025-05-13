@@ -10,16 +10,24 @@ from experiments.protein_encoding import ENCODER_MAP, EMBED_SIZES
 from gifflar.data.hetero import HeteroDataBatch
 from gifflar.model.base import GlycanGIN
 from gifflar.model.baselines.sweetnet import SweetNetLightning
-from gifflar.model.utils import GIFFLARPooling, LectinStorage, get_prediction_head
+from gifflar.model.downstream import DownstreamGGIN
+from gifflar.model.glylm import GlycanLM
+from gifflar.model.utils import EmbeddingStorage, GIFFLARPooling, LectinStorage, get_prediction_head
 from gifflar.utils import get_metrics
 
 THRESHOLD = 0.5
 
+GLYCAN_ENCODERS = {
+    "gifflar": DownstreamGGIN,
+    "sweetnet": SweetNetLightning,
+    "glylm": GlycanLM,
+}
 
 class LGI_Model(LightningModule):
     def __init__(
             self,
-            glycan_encoder: GlycanGIN | SweetNetLightning,
+            glycan_encoder_name: str,
+            glycan_encoder_args: dict[str, Any],
             lectin_encoder: str,
             le_layer_num: int,
             add_tasks: list[str, str] = [],
@@ -36,8 +44,14 @@ class LGI_Model(LightningModule):
         """
         super().__init__()
 
-        self.glycan_encoder = glycan_encoder
-        self.glycan_pooling = GIFFLARPooling("global_mean")
+        self.glycan_encoder = GLYCAN_ENCODERS[glycan_encoder_name](**glycan_encoder_args)
+        if glycan_encoder_name == "glylm":
+            self.glycan_embeddings = EmbeddingStorage(
+                encoder=self.glycan_encoder.encoder, # get the pipeline out of the model (glylm.py:35)
+                name="glylm_" + Path(glycan_encoder_args["model_dir"]).parent.name,
+                path=kwargs["root_dir"],
+            )
+        
         self.lectin_encoder = lectin_encoder
         self.le_layer_num = le_layer_num
         self.add_tasks = add_tasks
@@ -46,9 +60,10 @@ class LGI_Model(LightningModule):
             encoder=ENCODER_MAP[lectin_encoder](le_layer_num), 
             lectin_encoder=lectin_encoder, 
             le_layer_num=le_layer_num, 
-            path=kwargs["root_dir"]
+            path=kwargs["root_dir"],
         )
-        self.combined_dim = glycan_encoder.hidden_dim + EMBED_SIZES[lectin_encoder]
+        
+        self.combined_dim = self.glycan_encoder.hidden_dim + EMBED_SIZES[lectin_encoder]
 
         self.head, self.loss, self.metrics = get_prediction_head(self.combined_dim, 1, "regression", size="large")
         self.add_metrics = [get_metrics(task=task, n_outputs=1, prefix=name) for name, task in self.add_tasks]
@@ -56,8 +71,10 @@ class LGI_Model(LightningModule):
     def to(self, device: torch.device):
         super(LGI_Model, self).to(device)
         self.glycan_encoder.to(device)
-        self.glycan_pooling.to(device)
         self.head.to(device)
+        if hasattr(self, "glycan_embeddings"):
+            self.glycan_embeddings.to(device)
+        self.lectin_embeddings.to(device)
 
         self.metrics = {split: metric.to(device) for split, metric in self.metrics.items()}
         self.add_metrics = [{split: metric.to(device) for split, metric in metrics.items()} for metrics in self.add_metrics]
@@ -65,14 +82,17 @@ class LGI_Model(LightningModule):
         return self
 
     def forward(self, data: HeteroDataBatch) -> dict[str, torch.Tensor]:
-        glycan_embed = self.glycan_encoder(data)
+        if hasattr(self, "glycan_embeddings"):
+            glycan_embed = self.glycan_embeddings.batch_query(data["IUPAC"])
+        else:
+            glycan_embed = self.glycan_encoder(data)["graph_embed"]
         lectin_embed = self.lectin_embeddings.batch_query(data["aa_seq"])
-        combined = torch.cat([glycan_embed["graph_embed"], lectin_embed], dim=-1)
+        combined = torch.cat([glycan_embed, lectin_embed], dim=-1)
         pred = self.head(combined)
 
         return {
-            "glycan_node_embeds": glycan_embed["node_embed"],
-            "glycan_graph_embeds": glycan_embed["graph_embed"],
+            # "glycan_node_embeds": glycan_embed["node_embed"],
+            "glycan_graph_embeds": glycan_embed,  # ["graph_embed"],
             "lectin_embeds": lectin_embed,
             "preds": pred,
         }
@@ -98,11 +118,10 @@ class LGI_Model(LightningModule):
         else:
             name, task = self.add_tasks[dataloader_idx - 1]
             if task == "classification":
-                # fwd_dict["preds"] = (fwd_dict["preds"] > THRESHOLD).float()
                 fwd_dict["loss"] = nn.BCEWithLogitsLoss()(fwd_dict["preds"], fwd_dict["labels"].float())
                 self.add_metrics[dataloader_idx - 1][stage].update(fwd_dict["preds"], fwd_dict["labels"])
                 self.log(f"{stage}/{name}/loss", fwd_dict["loss"], batch_size=len(fwd_dict["preds"]), add_dataloader_idx=False)
-            elif task == "regression":
+            elif task in {"regression", "spectrum"}:
                 pass
             else:
                 raise ValueError(f"Task {task} is not supported")

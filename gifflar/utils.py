@@ -14,10 +14,10 @@ from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, Grad
     GradientBoostingClassifier
 from sklearn.multioutput import MultiOutputRegressor, MultiOutputClassifier
 from sklearn.svm import LinearSVR, SVC, SVR
-from torchmetrics import MetricCollection, Accuracy, AUROC, MatthewsCorrCoef, MeanAbsoluteError, MeanSquaredError, \
+from torchmetrics import CosineSimilarity, KLDivergence, MetricCollection, Accuracy, AUROC, MatthewsCorrCoef, MeanAbsoluteError, MeanSquaredError, \
     R2Score
 
-from gifflar.sensitivity import Sensitivity
+from gifflar.metrics import Sensitivity
 
 # MASK, unknown, values...
 atom_map = {6: 2, 7: 3, 8: 4, 15: 5, 16: 6}
@@ -155,7 +155,7 @@ def get_mods_list(node: dict[str, Any]) -> list[int]:
 
 def get_sl_model(
         name: Literal["rf", "svm", "xgb"],
-        task: Literal["regression", "classification", "multilabel"],
+        task: Literal["regression", "classification", "multilabel", "spectrum"],
         n_outputs: int,
         **kwargs: Any,
 ) -> BaseEstimator:
@@ -171,6 +171,8 @@ def get_sl_model(
     Returns:
         Ready-to-fit statistical learning model
     """
+    if task == "spectrum":
+        task = "regression"
     model_args = {k: v for k, v in kwargs["model"].items() if k not in {"name", "featurization"}}
     match name, task, n_outputs:
         case "rf", "regression", _:
@@ -203,7 +205,7 @@ def get_sl_model(
 
 
 def get_metrics(
-        task: Literal["regression", "classification", "multilabel"],
+        task: Literal["regression", "classification", "multilabel", "spectrum"],
         n_outputs: int,
         prefix: str = "",
 ) -> dict[str, MetricCollection]:
@@ -225,7 +227,12 @@ def get_metrics(
     Returns:
         A dictionary mapping split names to torchmetrics.MetricCollection
     """
-    if task == "regression":
+    if task == "spectrum":
+        m = MetricCollection([
+            CosineSimilarity(),
+            KLDivergence(),
+        ])
+    elif task == "regression":
         m = MetricCollection([
             MeanSquaredError(),
             MeanAbsoluteError(),

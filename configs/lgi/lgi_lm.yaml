@@ -1,0 +1,25 @@
+seed: 42
+root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_data
+logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_logs
+origin: /home/rjo21/Desktop/GIFFLAR/lgi_data_full.pkl
+add_valid:
+  - name: UniLectin
+    path: /home/rjo21/Desktop/GIFFLAR/experiments/results/unilectin.tsv
+    task: classification
+  - name: Canada
+    path: /home/rjo21/Desktop/GIFFLAR/experiments/results/CanadaData.csv
+    task: regression
+model:
+  glycan_encoder:
+    - name: glylm
+      token_file: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/unique/GlyLM/bpe_lib_2500.pkl
+      model_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/unique/GlyLM/bpe_lib_2500_t6/checkpoint-5927260
+      pre_tokenizer: lib
+      hidden_dim: 320
+  lectin_encoder:
+    - name: ESM
+      layer_num: 33
+  batch_size: 256
+  epochs: 10
+  learning_rate: 0.001
+  optimizer: Adam

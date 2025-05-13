@@ -14,7 +14,7 @@ class RGCN(DownstreamGGIN):
             feat_dim: int,
             hidden_dim: int,
             output_dim: int,
-            task: Literal["regression", "classification", "multilabel"],
+            task: Literal["regression", "classification", "multilabel", "spectrum"],
             num_layers: int = 3,
             batch_size: int = 32,
             pre_transform_args: Optional[dict] = None,

@@ -9,21 +9,16 @@ from gifflar.tokenize.tokenizer import GIFFLARTokenizer
 from gifflar.train_lm import PRE_TOKENIZERS
 
 def pipeline(tokenizer, glycan_lm, iupac):
-    # print(iupac)
-    try:
-        tokens = tokenizer(iupac)
-        input_ids = torch.tensor(tokens["input_ids"]).unsqueeze(0).to(glycan_lm.device)
-        attention = torch.tensor(tokens["attention_mask"]).unsqueeze(0).to(glycan_lm.device)
-        with torch.no_grad():
-            return glycan_lm(input_ids, attention).last_hidden_state
-    except Exception as e:
-        raise e
-        # return None
+    tokens = tokenizer(iupac)
+    input_ids = torch.tensor(tokens["input_ids"]).unsqueeze(0).to(glycan_lm.device)[:, :606]
+    attention = torch.tensor(tokens["attention_mask"]).unsqueeze(0).to(glycan_lm.device)[:, :606]
+    with torch.no_grad():
+        return glycan_lm(input_ids, attention).last_hidden_state
 
 
 class GlycanLM(DownstreamGGIN):
     def __init__(self, token_file, model_dir, hidden_dim: int, pre_tokenizer: str, *args, **kwargs):
-        super().__init__(feat_dim=1, hidden_dim=1, *args, **kwargs)
+        super().__init__(feat_dim=1, hidden_dim=hidden_dim, *args, **kwargs)
         del self.convs
 
         pretokenizer = PRE_TOKENIZERS[pre_tokenizer]()
@@ -34,6 +29,7 @@ class GlycanLM(DownstreamGGIN):
             tokenizer.load(token_file)
         else:
             tokenizer = GIFFLARTokenizer(pretokenizer, "NONE")
+            tokenizer.load(None)
         
         glycan_lm = EsmModel.from_pretrained(model_dir)
         self.encoder = lambda x: pipeline(tokenizer, glycan_lm, x)

@@ -41,7 +41,3 @@ jobs:
         run: |
           cd tests
           pytest
-  
-#          token: ${{ secrets.CODECOV_TOKEN }}
-#          fail_ci_if_error: false
-#          files: coverage.xml

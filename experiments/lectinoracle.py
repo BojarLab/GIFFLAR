@@ -8,9 +8,11 @@ from glycowork.ml.models import prep_model
 
 from gifflar.data.modules import LGI_GDM
 from gifflar.data.datasets import GlycanOnDiskDataset
-from experiments.lgi_model import LectinStorage
+from experiments.protein_encoding import ENCODER_MAP
+from gifflar.model.utils import LectinStorage
 
-le = LectinStorage("ESM", 33)
+
+le = LectinStorage(ENCODER_MAP["ESM"](33), "ESM", 33)
 
 class LGI_OnDiskDataset(GlycanOnDiskDataset):
     @property
@@ -39,69 +41,82 @@ def get_ds(dl, split_idx: int):
 
 
 def collate_lgi(data):
-    for d in data:
-        d["train_idx"] = le.query(d["aa_seq"])
-
+    print(len(data))
     offset = 0
     labels, edges, y, train_idx, batch = [], [], [], [], []
-    for i, d in enumerate(data):
-        labels.append(d["labels"])
+    for i, x in enumerate(data):
+        labels.append(x["sweetnet_x"])
+        edge_index = x["sweetnet_edge_index"]
         edges.append(torch.stack([
-            d["edge_index"][0] + offset,
-            d["edge_index"][1] + offset,
+            edge_index[0] + offset,
+            edge_index[1] + offset,
         ]))
-        offset += len(d["labels"])
-        y.append(d["y"])
-        train_idx.append(le.query(d["aa_seq"]))
-        batch += [i for _ in range(len(d["labels"]))]
+        offset += len(x["sweetnet_x"])
+        y.append(x["y"])
+        train_idx.append(a := le.query(x["aa_seq"]))
+        if a is None:
+            print(x["aa_seq"])
+        batch += [i for _ in range(len(x["labels"]))]
 
     labels = torch.cat(labels, dim=0)
     edges = torch.cat(edges, dim=1)
     y = torch.stack(y)
     train_idx = torch.stack(train_idx)
     batch = torch.tensor(batch)
-    
+
     return Batch(
-        labels=labels,
-        edge_index=edges,
-        y=y,
-        train_idx=train_idx,
-        batch=batch,
+        labels=labels.to("cuda"),
+        edge_index=edges.to("cuda"),
+        y=y.to("cuda"),
+        train_idx=train_idx.to("cuda"),
+        batch=batch.to("cuda"),
     )
 
-datamodule = LGI_GDM(
-    root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_data", filename="/home/rjo21/Desktop/GIFFLAR/lgi_data_full.pkl", hash_code="8b34af2a",
-    batch_size=1, transform=None, pre_transform={"GIFFLARTransform": "", "SweetNetTransform": ""},
-)
 
-get_ds(datamodule.train_dataloader(), 0)
-get_ds(datamodule.val_dataloader(), 1)
-get_ds(datamodule.test_dataloader(), 2)
+def train():
+    datamodule = LGI_GDM(
+        root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_data", filename="/home/rjo21/Desktop/GIFFLAR/lgi_data_full.pkl", hash_code="8b34af2a",
+        batch_size=1, transform=None, pre_transform={"GIFFLARTransform": "", "SweetNetTransform": ""}, force_reload=True,
+    )
+    
+    model = prep_model("LectinOracle", num_classes=1)
+    optimizer = torch.optim.Adam(model.parameters())
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+    
+    m, met = train_model(
+        model=model,
+        dataloaders={"train": torch.utils.data.DataLoader(datamodule.train, batch_size=128, collate_fn=collate_lgi), 
+                     "val": torch.utils.data.DataLoader(datamodule.val, batch_size=128, collate_fn=collate_lgi)},
+        criterion=torch.nn.MSELoss(),
+        optimizer=optimizer,
+        scheduler=scheduler,
+        return_metrics=True,
+        mode="regression",
+        num_epochs=100,
+        patience=100,
+    )
+    
+    import pickle
+    
+    with open("lectinoracle_full_model_2.pkl", "wb") as f:
+        pickle.dump(m, f)
+    with open("lectinoracle_full_metrics_2.pkl", "wb") as f:
+        pickle.dump(met, f)
+    
 
-train_set = LGI_OnDiskDataset("/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/glycowork_full", path_idx=0)
-val_set = LGI_OnDiskDataset("/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/glycowork_full", path_idx=1)
+def test():
+    datamodule = LGI_GDM(
+        root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_data", filename="/home/rjo21/Desktop/GIFFLAR/experiments/results/unilectin.tsv",
+        hash_code="8b34af2a", batch_size=1, transform=None, pre_transform={"GIFFLARTransform": "", "SweetNetTransform": ""}#, force_reload=True,
+    )
+    
+    get_ds(datamodule.train_dataloader(), 0)
+    get_ds(datamodule.val_dataloader(), 1)
+    get_ds(datamodule.test_dataloader(), 2)
 
-model = prep_model("LectinOracle", num_classes=1)
-optimizer = torch.optim.Adam(model.parameters())
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+    train_set = LGI_OnDiskDataset("/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/glycowork_full", path_idx=0)
+    val_set = LGI_OnDiskDataset("/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/glycowork_full", path_idx=1)
 
-m, met = train_model(
-    model=model,
-    dataloaders={"train": torch.utils.data.DataLoader(train_set, batch_size=128, collate_fn=collate_lgi), 
-                 "val": torch.utils.data.DataLoader(val_set, batch_size=128, collate_fn=collate_lgi)},
-    criterion=torch.nn.MSELoss(),
-    optimizer=optimizer,
-    scheduler=scheduler,
-    return_metrics=True,
-    mode="regression",
-    num_epochs=100,
-    patience=100,
-)
 
-import pickle
-
-with open("lectinoracle_full_model.pkl", "wb") as f:
-    pickle.dump(m, f)
-with open("lectinoracle_full_metrics.pkl", "wb") as f:
-    pickle.dump(met, f)
-
+if __name__ == "__main__":
+    train()

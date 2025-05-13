@@ -6,7 +6,7 @@ from torch_geometric.data import HeteroData
 
 from gifflar.data.hetero import HeteroDataBatch
 from gifflar.model.base import GlycanGIN
-from gifflar.model.utils import GIFFLARPooling, get_prediction_head
+from gifflar.model.utils import GIFFLARPooling, get_prediction_head, get_spectrum_prediction_head
 from gifflar.utils import get_metrics
 
 
@@ -15,8 +15,8 @@ class DownstreamGGIN(GlycanGIN):
             self,
             feat_dim: int,
             hidden_dim: int,
-            output_dim: int = -1,
-            task: Literal["regression", "classification", "multilabel"] | None = None,
+            output_dim: int = 1,
+            task: Literal["regression", "classification", "multilabel", "spectrum", "spectrum"] | None = None,
             num_layers: int = 3,
             batch_size: int = 32,
             pre_transform_args: Optional[dict] = None,
@@ -28,7 +28,7 @@ class DownstreamGGIN(GlycanGIN):
         Args:
             hidden_dim: The hidden dimension of the model
             output_dim: The output dimension of the model
-            task: The task to perform, either "regression", "classification" or "multilabel"
+            task: The task to perform, either "regression", "classification", "multilabel", "spectrum"
             num_layers: The number of GIN layers to use
             batch_size: The batch size to use
             pre_transform_args: A dictionary of pre-transforms to apply to the input data
@@ -37,7 +37,6 @@ class DownstreamGGIN(GlycanGIN):
         super().__init__(feat_dim, hidden_dim, num_layers, batch_size, pre_transform_args)
 
         self.pooling = GIFFLARPooling(kwargs.get("pooling", "global_mean"))
-        # self.add_module('pooling', GIFFLARPooling(kwargs.get("pooling", "global_mean")))
         self.output_dim = output_dim
         self.task = task
         if self.task is not None:
@@ -116,12 +115,16 @@ class DownstreamGGIN(GlycanGIN):
             fwd_dict["loss"] = self.loss(fwd_dict["preds"], fwd_dict["labels"].reshape(fwd_dict["preds"].shape).float())
         elif self.task == "classification":
             fwd_dict["loss"] = self.loss(fwd_dict["preds"], fwd_dict["labels"].reshape(fwd_dict["preds"].shape[:-1]))
+        elif self.task == "spectrum":
+            fwd_dict["loss"] = self.loss(fwd_dict["preds"], fwd_dict["labels"], target=torch.ones(len(fwd_dict["labels"])).to(fwd_dict["labels"].device))
         else:
             fwd_dict["loss"] = self.loss(fwd_dict["preds"], fwd_dict["labels"])
 
         # Update the metrics based on the task and the number of outputs to predict
         if self.task == "classification" and self.output_dim > 1:
             self.metrics[stage].update(fwd_dict["preds"], fwd_dict["labels"].reshape(fwd_dict["preds"].shape[:-1]))
+        elif self.task == "spectrum":
+            self.metrics[stage].update(fwd_dict["preds"], fwd_dict["labels"].reshape(fwd_dict["preds"].shape), precursor_masses=batch["red_mz"])
         else:
             self.metrics[stage].update(fwd_dict["preds"], fwd_dict["labels"].reshape(fwd_dict["preds"].shape))
 
