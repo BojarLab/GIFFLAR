@@ -177,7 +177,7 @@ def get_spectrum_prediction_head(
     m = MetricCollection([
         CosineSimilarity(reduction="mean"),
         KLDivergence(reduction="mean", log_prob=True),
-        ModifiedCosineSimilarity(num_bins=512, tolerance=0.2),
+        ModifiedCosineSimilarity(num_bins=2048, tolerance=0.2),
     ])
     metrics = {
         "train": m.clone(prefix="train/" + metric_prefix), 

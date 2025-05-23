@@ -1,6 +1,3 @@
-import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
 from pathlib import Path
 from typing import Any
 import time
@@ -143,6 +140,7 @@ def train(**kwargs: Any) -> None:
     data_config, datamodule, logger, _ = setup(3, **kwargs)
     model = MODELS[kwargs["model"]["name"]](output_dim=data_config["num_classes"], task=data_config["task"],
                                             pre_transform_args=kwargs.get("pre-transforms", {}), **kwargs["model"])
+    print("Using device", "CUDA" if torch.cuda.is_available() else "CPU")
     trainer = Trainer(
         callbacks=[
             RichModelSummary(),
@@ -150,8 +148,8 @@ def train(**kwargs: Any) -> None:
         ],
         max_epochs=kwargs["model"]["epochs"],
         logger=logger,
-        limit_train_batches=3,
-        limit_val_batches=3,
+        # limit_train_batches=3,
+        # limit_val_batches=3,
         # accelerator="cpu",
     )
     start = time.time()

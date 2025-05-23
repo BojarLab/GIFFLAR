@@ -10,8 +10,8 @@ from glycowork.glycan_data.loader import lib
 from glyles import convert
 from rdkit import Chem
 from sklearn.base import BaseEstimator
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier, GradientBoostingRegressor, \
-    GradientBoostingClassifier
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from xgboost import XGBClassifier, XGBRegressor
 from sklearn.multioutput import MultiOutputRegressor, MultiOutputClassifier
 from sklearn.svm import LinearSVR, SVC, SVR
 from torchmetrics import CosineSimilarity, KLDivergence, MetricCollection, Accuracy, AUROC, MatthewsCorrCoef, MeanAbsoluteError, MeanSquaredError, \
@@ -76,6 +76,12 @@ def unfold_config(config: dict) -> Generator[dict, None, None]:
     Yields:
         The unfolded configuration.
     """
+    if isinstance(config["seed"], list):
+        seeds = config["seed"]
+    else:
+        seeds = [config["seed"]]
+    del config["seed"]
+
     if isinstance(config["datasets"], dict):
         datasets = [config["datasets"]]
     else:
@@ -87,17 +93,20 @@ def unfold_config(config: dict) -> Generator[dict, None, None]:
     else:
         models = config["model"]
     del config["model"]
+
     if models is None:
         models = [{}]
 
-    for dataset in datasets:
-        for model in models:
-            tmp_config = copy.deepcopy(config)
-            tmp_config["dataset"] = dataset
-            if "label" in tmp_config["dataset"] and not isinstance(tmp_config["dataset"]["label"], list):
-                tmp_config["dataset"]["label"] = [tmp_config["dataset"]["label"]]
-            tmp_config["model"] = model
-            yield tmp_config
+    for seed in seeds:
+        for dataset in datasets:
+            for model in models:
+                tmp_config = copy.deepcopy(config)
+                tmp_config["seed"] = seed
+                tmp_config["dataset"] = dataset
+                if "label" in tmp_config["dataset"] and not isinstance(tmp_config["dataset"]["label"], list):
+                    tmp_config["dataset"]["label"] = [tmp_config["dataset"]["label"]]
+                tmp_config["model"] = model
+                yield tmp_config
 
 
 def hash_dict(input_dict: dict, n_chars: int = 8) -> str:
@@ -190,15 +199,15 @@ def get_sl_model(
         case "svm", "multilabel", _:
             return MultiOutputClassifier(SVC(kernel="linear", probability=True, **model_args))
         case "xgb", "regression", 1:
-            return GradientBoostingRegressor(**model_args)
+            return XGBRegressor(**model_args)
         case "xgb", "regression", _:
-            return MultiOutputRegressor(GradientBoostingRegressor(**model_args))
+            return MultiOutputRegressor(XGBRegressor(**model_args))
         case "xgb", "classification", 1:
-            return GradientBoostingClassifier(**model_args)
+            return XGBClassifier(**model_args)
         case "xgb", "classification", _:
-            return MultiOutputClassifier(GradientBoostingClassifier(**model_args))
+            return MultiOutputClassifier(XGBClassifier(**model_args))
         case "xgb", "multilabel", _:
-            return MultiOutputClassifier(GradientBoostingClassifier(**model_args))
+            return MultiOutputClassifier(XGBClassifier(**model_args))
         case _:
             raise NotImplementedError(f"The combination of (name, task, n_outputs) as ({name} {task}, {n_outputs}) has "
                                       f"not been considered.")

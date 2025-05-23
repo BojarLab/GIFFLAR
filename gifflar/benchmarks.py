@@ -4,31 +4,10 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-from glycowork.glycan_data.loader import df_species as taxonomy
+from glycowork.glycan_data.loader import df_species, df_glycan, build_custom_df
 from tqdm import tqdm
 
 from gifflar.utils import iupac2smiles
-
-
-def get_taxonomy(root: Path | str) -> pd.DataFrame:
-    """
-    Download full taxonomy data, process it, and save it as a tsv file.
-
-    Args:
-        root: The root directory to save the data to.
-
-    Returns:
-        The processed taxonomy data.
-    """
-    if not (p := (root / Path("taxonomy.tsv"))).exists():
-        mask = []
-        # convert to IUPAC to SMILES and build a mask to remove not-convertable molecules.
-        for i in tqdm(taxonomy["glycan"]):
-            smiles = iupac2smiles(i)
-            mask.append(smiles is not None)
-        tax = taxonomy[mask]
-        tax.to_csv(p, sep="\t", index=False)
-    return pd.read_csv(p, sep="\t")
 
 
 def get_taxonomic_level(
@@ -47,7 +26,7 @@ def get_taxonomic_level(
     """
     if not (p := (root / Path(f"taxonomy_{level}.tsv"))).exists():
         # Chop to taxonomic level of interest and remove invalid rows
-        tax = get_taxonomy(root)[["glycan", level]]
+        tax = df_species[["glycan", level]]
         tax.rename(columns={"glycan": "IUPAC"}, inplace=True)
         tax[tax[level] == "undetermined"] = np.nan
         tax.dropna(inplace=True)
@@ -83,45 +62,17 @@ def get_tissue(root: Path | str) -> Path:
     """
     if not (p := (root / Path("tissue.tsv"))).exists():
         # Process the data and remove unnecessary columns
-        df = pd.read_csv("datasets/tissue_multilabel_df.csv")
+        df = build_custom_df(df_glycan, "df_tissue")[["glycan", "tissue_sample"]]
         df.rename(columns={"glycan": "IUPAC"}, inplace=True)
-        df.dropna(inplace=True)
-
-        df["split"] = np.random.choice(["train", "val", "test"], df.shape[0], p=[0.7, 0.2, 0.1])
-        df.to_csv(p, sep="\t", index=False)
-    return p
-
-
-def get_immunogenicity(root: Path | str) -> Path:
-    """
-    Download immunogenicity data, process it, and save it as a tsv file.
-
-    Args:
-        root: The root directory to save the data to.
-
-    Returns:
-        The filepath of the processed immunogenicity data.
-    """
-    root = Path(root)
-    if not (p := (root / "immunogenicity.tsv")).exists():
-        # Download the data
-        urllib.request.urlretrieve("https://torchglycan.s3.us-east-2.amazonaws.com/downstream/glycan_immunogenicity.csv", p.with_suffix(".csv"))
-
-        # Process the data and remove unnecessary columns
-        df = pd.read_csv(p.with_suffix(".csv"))[["glycan", "immunogenicity"]]
-        df.rename(columns={"glycan": "IUPAC"}, inplace=True)
+        df.drop_duplicates(inplace=True)
         df.dropna(inplace=True)
 
         # One-hot encode the individual classes and collate them for glycans that are the same
-        classes = {n: i for i, n in enumerate(df["immunogenicity"].unique())}
-        df["label"] = df["immunogenicity"].map(classes)
-        df["split"] = np.random.choice(["train", "val", "test"], df.shape[0], p=[0.7, 0.2, 0.1])
+        df = pd.concat([df["IUPAC"], pd.get_dummies(df["tissue_sample"])], axis=1)
+        df = df.groupby('IUPAC').agg("sum").reset_index()
 
-        df.drop("immunogenicity", axis=1, inplace=True)
+        df["split"] = np.random.choice(["train", "val", "test"], df.shape[0], p=[0.7, 0.2, 0.1])
         df.to_csv(p, sep="\t", index=False)
-        with open(root / "immunogenicity_classes.tsv", "w") as f:
-            for n, i in classes.items():
-                print(n, i, sep="\t", file=f)
     return p
 
 
@@ -137,16 +88,15 @@ def get_glycosylation(root: Path | str) -> Path:
     """
     root = Path(root)
     if not (p := root / "glycosylation.tsv").exists():
-        urllib.request.urlretrieve("https://torchglycan.s3.us-east-2.amazonaws.com/downstream/glycan_properties.csv", p.with_suffix(".csv"))
-        df = pd.read_csv(p.with_suffix(".csv"))[["glycan", "link"]]
+        df = df_glycan[["glycan", "glycan_type"]]
         df.rename(columns={"glycan": "IUPAC"}, inplace=True)
         df.dropna(inplace=True)
 
-        classes = {n: i for i, n in enumerate(df["link"].unique())}
-        df["label"] = df["link"].map(classes)
+        classes = {n: i for i, n in enumerate(df["glycan_type"].unique())}
+        df["label"] = df["glycan_type"].map(classes)
         df["split"] = np.random.choice(["train", "val", "test"], df.shape[0], p=[0.7, 0.2, 0.1])
 
-        df.drop("link", axis=1, inplace=True)
+        df.drop("glycan_type", axis=1, inplace=True)
         df.to_csv(p, sep="\t", index=False)
         with open(root / "glycosylation_classes.tsv", "w") as f:
             for n, i in classes.items():
@@ -164,12 +114,12 @@ def get_spectrum(root: Path | str) -> Path:
     Returns:
         The filepath of the processed spectrum data.
     """
-    root = Path(root)
-    #if not (p := root / "spectrum.tsv").exists():
-    p = root / "spectrum.tsv"
-    df = pd.read_csv(Path("/") / "scratch" / "SCRATCH_SAS" / "roman" / "Gothenburg" / "GIFFLAR" / "spectrum_pred_512_small.tsv", sep="\t")
-    df.to_csv(p, sep="\t", index=False)
-    return p
+    # root = Path(root)
+    # if not (p := root / "spectrum.tsv").exists():
+    #     p = root / "spectrum.tsv"
+    #     df = pd.read_csv(Path("/") / "scratch" / "SCRATCH_SAS" / "roman" / "Gothenburg" / "GIFFLAR" / "spectrum_pred_2048.tsv", sep="\t")
+    #     df.to_csv(p, sep="\t", index=False)
+    return Path("/") / "scratch" / "SCRATCH_SAS" / "roman" / "Gothenburg" / "GIFFLAR" / "spectrum_pred_2048.tsv"
 
 
 def get_dataset(data_config: dict, root: Path | str) -> dict:
@@ -190,9 +140,7 @@ def get_dataset(data_config: dict, root: Path | str) -> dict:
             path = get_taxonomic_level(root, name_fracs[1])
         case "Tissue":
             path = get_tissue(root)
-        case "Immunogenicity":
-            path = get_immunogenicity(root)
-        case "Glycosylation":
+        case "Glycosylation" | "Linkage":
             path = get_glycosylation(root)
         case "Spectrum":
             path = get_spectrum(root)

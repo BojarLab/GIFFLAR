@@ -1,6 +1,8 @@
 from typing import Literal, Optional, Any
 
 import torch
+import matplotlib
+matplotlib.use('TkAgg',force=True)
 from glycowork.glycan_data.loader import lib
 from pytorch_lightning import LightningModule
 from torch import nn

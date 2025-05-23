@@ -20,10 +20,10 @@ class ModifiedCosineSimilarity(Metric):
     Args:
         tolerance: The tolerance value for the modified cosine similarity.
     """
-    def __init__(self, num_bins, tolerance: float = 0.2):
+    def __init__(self, num_bins: Optional[int] = None, tolerance: float = 0.2):
         super(ModifiedCosineSimilarity, self).__init__()
         self.mod_cos = matchms.similarity.ModifiedCosine(tolerance=tolerance)
-        self.mz = np.arange(MIN, MAX, (MAX - MIN) / num_bins)
+        self.mz = None if num_bins is None else np.arange(MIN, MAX, (MAX - MIN) / num_bins)
         self.add_state("mod_cos_sim", default=[], dist_reduce_fx="cat")
 
     def update(self, pred: torch.Tensor, true: torch.Tensor, precursor_masses: list[float]) -> torch.Tensor:
@@ -32,9 +32,11 @@ class ModifiedCosineSimilarity(Metric):
         assert len(true.shape) == 2, "The true values must have dimensions (batch_size, num_predictions)"
         assert pred.shape[0] == len(precursor_masses), "The batch size the precursor masses must match those of predictions, and true values"
         
+        if self.mz is None:
+            self.mz = np.arange(MIN, MAX, (MAX - MIN) / pred.shape[1])
         self.mod_cos_sim += [float(self.mod_cos.pair(
-            matchms.Spectrum(mz=self.mz, intensities=pred[i].cpu().numpy(), metadata={"precursor_mz": precursor_masses[i]}), 
-            matchms.Spectrum(mz=self.mz, intensities=true[i].cpu().numpy(), metadata={"precursor_mz": precursor_masses[i]})
+            matchms.Spectrum(mz=self.mz, intensities=pred[i].cpu().numpy().astype(float), metadata={"precursor_mz": precursor_masses[i]}), 
+            matchms.Spectrum(mz=self.mz, intensities=true[i].cpu().numpy().astype(float), metadata={"precursor_mz": precursor_masses[i]})
         )["score"]) for i in range(pred.shape[0])]
     
     def compute(self) -> torch.Tensor:
