@@ -2,7 +2,7 @@ from typing import Literal, Optional, Any
 
 import torch
 import matplotlib
-matplotlib.use('TkAgg',force=True)
+# matplotlib.use('TkAgg',force=True)
 from glycowork.glycan_data.loader import lib
 from pytorch_lightning import LightningModule
 from torch import nn
@@ -48,7 +48,7 @@ class GlycanGIN(LightningModule):
         self.embedding = MultiEmbedding({
             "atoms": nn.Embedding(len(atom_map) + 2, rand_dim, _freeze=True),
             "bonds": nn.Embedding(len(bond_map) + 2, rand_dim, _freeze=True),
-            "monosacchs": nn.Embedding(2368, rand_dim, _freeze=True),  # len(lib) + 2
+            "monosacchs": nn.Embedding(len(lib) + 2, rand_dim, _freeze=True),
         })
 
         # Define the GIN layers to embed messages between nodes

@@ -7,7 +7,7 @@ import shutil
 import numpy as np
 import pandas as pd
 import torch
-from torch_geometric.data import HeteroData, OnDiskDataset, Database, SQLiteDatabase
+from torch_geometric.data import HeteroData, OnDiskDataset, Database, SQLiteDatabase, InMemoryDataset
 from torch_geometric.data.data import BaseData
 from torch_geometric.data.database import Schema
 from tqdm import tqdm
@@ -18,6 +18,7 @@ from gifflar.data.utils import GlycanStorage
 PROCESS_CHUNK_SIZE = 10_000
 
 class GlycanOnDiskDataset(OnDiskDataset):
+    """IMPORTANT: Does not work with multiple workers. In DataLoader, num_workers must be 0."""
     def __init__(
             self,
             root: str,
@@ -36,7 +37,7 @@ class GlycanOnDiskDataset(OnDiskDataset):
         self._db: Optional[Database] = None
         self._numel: Optional[int] = None
         super(OnDiskDataset, self).__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
-        self.dataset_args = torch.load(Path(self.processed_paths[path_idx]).with_suffix(".pth"))
+        self.dataset_args = torch.load(Path(self.processed_paths[path_idx]).with_suffix(".pth"), weights_only=False)
 
     def _process(self):
         if self.force_reload:
@@ -105,7 +106,69 @@ class GlycanOnDiskDataset(OnDiskDataset):
         return data
 
 
-class GlycanDataset(GlycanOnDiskDataset):
+class GlycanInMemoryDataset(InMemoryDataset):
+    def __init__(
+            self,
+            root: str | Path,
+            transform: Optional[Callable] = None,
+            pre_transform: Optional[Callable] = None,
+            pre_filter: Optional[Callable] = None,
+            path_idx: int = 0,
+            force_reload: bool = False,
+            log: bool = True,
+            **dataset_args: dict[str, Any],
+    ):
+        """
+        Initialize the dataset with the given parameters.
+
+        Args:
+            root: The root directory to store the processed data
+            filename: The filename of the data to process
+            hash_code: The hash code to use for the processed data
+            transform: The transform to apply to the data
+            pre_transform: The pre-transform to apply to the data
+            path_idx: The index of the processed file name to use
+            **dataset_args: Additional arguments to pass to the dataset
+        """
+        super().__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
+        self.data, self.dataset_args = torch.load(self.processed_paths[path_idx], weights_only=False)
+
+    def __len__(self) -> int:
+        """Return the length of the dataset."""
+        return self.data.__len__()
+
+    def len(self) -> int:
+        """Return the length of the dataset."""
+        return len(self)
+
+    def __getitem__(self, item) -> Any:
+        """Return the item at the given index."""
+        return self.data[item] if self.transform is None else self.transform(self.data[item])
+
+    @property
+    def processed_paths(self) -> list[str]:
+        """Return the list of processed paths."""
+        return [str(Path(self.root) / f) for f in self.processed_file_names]
+
+    def process_(self, data: list[HeteroData], path_idx: int = 0, *args, **kwargs) -> None:
+        """
+        Filter, process the data and store it at the given path index.
+
+        Args:
+            data: The data to process
+            path_idx: The index of the processed file name to use
+        """
+        if self.pre_filter is not None:
+            data = [d for d in data if self.pre_filter(d)]
+        if self.pre_transform is not None:
+            # data = [self.pre_transform(d) for d in data]
+            data = self.pre_transform(data)
+
+        torch.save((data, self.dataset_args), self.processed_paths[path_idx])
+
+
+# class GlycanDataset(GlycanOnDiskDataset):
+class GlycanDataset(GlycanInMemoryDataset):
     def __init__(
             self,
             root: str | Path,

@@ -187,7 +187,7 @@ def get_sl_model(
         case "rf", "regression", _:
             return RandomForestRegressor(**model_args)
         case "rf", _, _:
-            return RandomForestClassifier(**model_args)
+            return RandomForestClassifier(class_weight="balanced", **model_args)
         case "svm", "regression", 1:
             return LinearSVR(**model_args)
         case "svm", "regression", _:
@@ -195,9 +195,9 @@ def get_sl_model(
                 del model_args["random_state"]
             return MultiOutputRegressor(SVR(kernel="linear", **model_args))
         case "svm", "classification", _:
-            return SVC(kernel="linear", probability=True, **model_args)
+            return SVC(class_weight="balanced", kernel="linear", probability=True, **model_args)
         case "svm", "multilabel", _:
-            return MultiOutputClassifier(SVC(kernel="linear", probability=True, **model_args))
+            return MultiOutputClassifier(SVC(class_weight="balanced", kernel="linear", probability=True, **model_args))
         case "xgb", "regression", 1:
             return XGBRegressor(**model_args)
         case "xgb", "regression", _:

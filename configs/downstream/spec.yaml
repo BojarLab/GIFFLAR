@@ -1,9 +1,9 @@
 seed: 42
 root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data
-logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_spec
+logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_test
 datasets:
-  - name: Spectrum
-    task: spectrum
+  - name: Glycosylation
+    task: classification
 pre-transforms:
   GIFFLARTransform:
   GNNGLYTransform:
@@ -20,13 +20,3 @@ model:
     patience: 30
     learning_rate: 0.001
     optimizer: Adam
-  - name: gifflar
-    feat_dim: 128
-    hidden_dim: 1024
-    batch_size: 16
-    num_layers: 8
-    epochs: 100
-    learning_rate: 0.001
-    optimizer: Adam
-    pooling: global_mean
-    suffix: _128_8_gp

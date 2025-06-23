@@ -70,8 +70,19 @@ def get_tissue(root: Path | str) -> Path:
         # One-hot encode the individual classes and collate them for glycans that are the same
         df = pd.concat([df["IUPAC"], pd.get_dummies(df["tissue_sample"])], axis=1)
         df = df.groupby('IUPAC').agg("sum").reset_index()
+        print(f"Found {df.shape[0]} glycans in tissue dataset.")
+        mask = df["IUPAC"].apply(iupac2smiles).isna()
+        df = df[~mask]
+        print(f"Found {df.shape[0]} glycans in tissue dataset after removing invalid IUPAC strings.")
 
         df["split"] = np.random.choice(["train", "val", "test"], df.shape[0], p=[0.7, 0.2, 0.1])
+        classes = [x for x in df.columns if x not in {"IUPAC", "split"}]
+        mask = ((df[df["split"] == "train"][classes].sum() == 0) |
+                (df[df["split"] == "val"][classes].sum() == 0) |
+                (df[df["split"] == "test"][classes].sum() == 0))
+        df.drop(columns=np.array(classes)[mask], inplace=True)
+        classes = [x for x in df.columns if x not in {"IUPAC", "split"}]
+        df = df[df[classes].sum(axis=1) > 0]
         df.to_csv(p, sep="\t", index=False)
     return p
 
@@ -97,6 +108,7 @@ def get_glycosylation(root: Path | str) -> Path:
         df["split"] = np.random.choice(["train", "val", "test"], df.shape[0], p=[0.7, 0.2, 0.1])
 
         df.drop("glycan_type", axis=1, inplace=True)
+        df = df.head(100)
         df.to_csv(p, sep="\t", index=False)
         with open(root / "glycosylation_classes.tsv", "w") as f:
             for n, i in classes.items():

@@ -6,8 +6,8 @@ from antlr4.CommonTokenStream import CommonTokenStream
 from antlr4.InputStream import InputStream
 from glycowork.motif.graph import glycan_to_nxGraph
 
-from glyles.grammar.GlycanLexer import GlycanLexer
-from glyles.grammar.GlycanParser import GlycanParser
+from glyles.iupac.IUPACLexer import IUPACLexer
+from glyles.iupac.IUPACParser import IUPACParser
 from glyles.glycans.poly.anltr_error_listener import GlyLESErrorListener
 
 
@@ -131,8 +131,8 @@ class GlycoworkPreTokenizer(PreTokenizer):
 class GrammarPreTokenizer(PreTokenizer):
     def __call__(self, iupac: str):
         iupac = iupac.strip().replace(" ", "")
-        token = CommonTokenStream(lexer := GlycanLexer(InputStream(data="#" + iupac + "#")))
-        parser = GlycanParser(token)
+        token = CommonTokenStream(lexer := IUPACLexer(InputStream(data="#" + iupac + "#")))
+        parser = IUPACParser(token)
 
         lexer.removeErrorListeners()
         lexer.addErrorListener(GlyLESErrorListener())

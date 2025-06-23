@@ -1,9 +1,13 @@
+import os, subprocess, sys
 from pathlib import Path
 from typing import Any
 import time
+import copy
 
 import torch
+torch.multiprocessing.set_start_method('spawn', force=True)
 import yaml
+import numpy as np
 from jsonargparse import ArgumentParser
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import RichProgressBar, RichModelSummary, ModelCheckpoint
@@ -106,8 +110,17 @@ def fit(**kwargs: Any) -> None:
             dtype=torch.long if data_config["task"] not in {"regression", "spectrum"} else torch.float
         )
 
-        preds = torch.tensor(model.predict_proba(X) if data_config["task"] in {"classification", "multilabel"} else
-                             model.predict(X), dtype=torch.float)
+        if data_config["task"] in "multilabel":
+            preds = []
+            for pred in model.predict_proba(X):
+                if pred.shape[1] == 1:
+                    pred = np.concatenate((pred, 1 - pred), axis=1)
+                preds.append(pred)
+        elif data_config["task"] == "classification":
+            preds = model.predict_proba(X)
+        else:
+            preds = model.predict(X)
+        preds = torch.tensor(preds, dtype=torch.float)
 
         if data_config["task"] == "classification":
             if data_config["num_classes"] > 1:
@@ -128,6 +141,7 @@ def fit(**kwargs: Any) -> None:
         metrics[name].update(preds, labels)
         logger.log_metrics(metrics[name].compute())
     logger.save()
+    telegram(f"Fitted {kwargs['model']['name']} (Seed: {kwargs['seed']}) on {kwargs['dataset']['name']} in {time.time() - start:.2f} seconds")
 
 
 def train(**kwargs: Any) -> None:
@@ -155,6 +169,23 @@ def train(**kwargs: Any) -> None:
     start = time.time()
     trainer.fit(model, datamodule)
     print("Training took", time.time() - start, "s")
+    telegram(f"Trained {kwargs['model']['name']} (Seed: {kwargs['seed']}) on {kwargs['dataset']['name']} in {time.time() - start:.2f} seconds")
+
+
+def telegram(message: str = "Hello World"):
+    chat_id = "694905585"
+    bot_id = "1141416729:AAFhKaONIFu3keTB6mjLfYEX_HtaYQDLLiY"
+    try:
+        subprocess.call([
+            'curl',
+            '--data', 'parse_mode=HTML',
+            '--data', f'chat_id={chat_id}',
+            '--data', f'text={message}',
+            '--request', 'POST',
+            f'https://api.telegram.org/bot{bot_id}/sendMessage'
+        ], stdout=open(os.devnull, 'w'), stderr=subprocess.STDOUT)
+    except Exception as e:
+        print("Telegram notification failed. Error Message:", str(e), file=sys.stderr)
 
 
 def pretrain(**kwargs: Any) -> None:
@@ -242,7 +273,11 @@ def main(config: str | Path) -> None:
         print("Finished pretraining GIFFLAR on", custom_args["file_path"])
 
 
-if __name__ == '__main__':
+def entry():
     parser = ArgumentParser()
     parser.add_argument("config", type=str, help="Path to YAML config file")
     main(parser.parse_args().config)
+
+
+if __name__ == '__main__':
+    entry()

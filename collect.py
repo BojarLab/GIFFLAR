@@ -37,7 +37,7 @@ with pd.ExcelWriter(sys.argv[2] + '.xlsx', engine='xlsxwriter') as writer:
         root = Path(sys.argv[1])
         models = sorted(filter(lambda x: selection is None or x in selection, [str(x).split("/")[-1] for x in root.iterdir() if x.is_dir()]), key=lambda x: order_models(x))
         # print(models)
-        datasets = ["Immunogenicity", "Glycosylation", "Domain", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"]
+        datasets = ["Immunogenicity", "Glycosylation", "Tissue", "Domain", "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"]
         df = pd.DataFrame(index=datasets, columns=models, dtype=float)
         df.fillna(-1.0, inplace=True)
         for model in models:
@@ -72,4 +72,3 @@ with pd.ExcelWriter(sys.argv[2] + '.xlsx', engine='xlsxwriter') as writer:
                         worksheet.write(r + 1, c + 1, val, bold_format)
             except:
                 pass
-

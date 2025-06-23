@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Union, Literal
 
 import torch
-from glycowork.glycan_data.loader import lib
+from glycowork.glycan_data.loader import lib, HashableDict
 from glycowork.motif.graph import glycan_to_nxGraph
 from rdkit.Chem import rdFingerprintGenerator
 from torch_geometric.data import Data, HeteroData
@@ -244,7 +244,7 @@ class ECFPTransform(RootTransform):
 
 
 class SweetNetTransform(RootTransform):
-    def __init__(self, glycan_lib: list[str] = lib, **kwargs: Any):
+    def __init__(self, glycan_lib: dict[str, int] = lib, **kwargs: Any):
         """
         Transformation to convert a glycan IUPAC string to a PyG Data object for the SweetNet model.
 
@@ -253,7 +253,7 @@ class SweetNetTransform(RootTransform):
             kwargs: Additional arguments
         """
         super().__init__(**kwargs)
-        self.glycan_lib = glycan_lib
+        self.glycan_lib = HashableDict(glycan_lib)
 
     def __call__(self, data: HeteroData) -> HeteroData:
         """
