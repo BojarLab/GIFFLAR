@@ -19,6 +19,8 @@ PRE_TRANSFORMS = {
     "RandomWalkPE": RandomWalkPE,
 }
 
+torch.set_float32_matmul_precision('medium')
+
 
 class GlycanGIN(LightningModule):
     def __init__(self, feat_dim: int, hidden_dim: int, num_layers: int, batch_size: int = 32,
@@ -108,6 +110,10 @@ class GlycanGIN(LightningModule):
     def validation_step(self, batch: HeteroData, batch_idx: int = 0, dataloader_idx: int = 0) -> dict[str, torch.Tensor]:
         """Compute the validation step of the model"""
         return self.shared_step(batch, "val")
+
+    def training_step_end(self, outputs: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        torch.cuda.synchronize()
+        return outputs
 
     def test_step(self, batch: HeteroData, batch_idx: int = 0, dataloader_idx: int = 0) -> dict[str, torch.Tensor]:
         """Compute the testing step of the model"""

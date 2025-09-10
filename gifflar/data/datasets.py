@@ -25,19 +25,19 @@ class GlycanOnDiskDataset(OnDiskDataset):
             transform: Optional[Callable] = None,
             pre_transform: Optional[Callable] = None,
             pre_filter: Optional[Callable] = None,
-            schema: Schema = object,
-            path_idx: int = 0,
             log: bool = True,
             force_reload: bool = False,
     ) -> None:
+        if getattr(self, 'parent', GlycanOnDiskDataset).__name__ != "GlycanOnDiskDataset":
+            super(OnDiskDataset, self).__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
+            return
         self.backend = "sqlite"  # "sqlite" or "rocksdb"
-        self.schema = schema
-        self.path_idx = path_idx
 
         self._db: Optional[Database] = None
         self._numel: Optional[int] = None
         super(OnDiskDataset, self).__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
-        self.dataset_args = torch.load(Path(self.processed_paths[path_idx]).with_suffix(".pth"), weights_only=False)
+        self.dataset_args = torch.load(Path(self.processed_paths[self.path_idx]).with_suffix(".pth"), weights_only=False)
+        print(f"Loading entries for {self.processed_paths[self.path_idx]} from disk.")
 
     def _process(self):
         if self.force_reload:
@@ -76,11 +76,12 @@ class GlycanOnDiskDataset(OnDiskDataset):
 
     def __getitems__(self, indices):
         return [self.get(idx) for idx in indices]
+    
+    def __len__(self) -> int:
+        """Return the length of the dataset."""
+        return super().len()
 
     def process_(self, data: list[HeteroData], path_idx: int = 0, final: bool = True) -> None:
-        """
-
-        """
         if len(data) != 0:
             print("Processing", len(data), "entries")
             self.db.multi_insert(range(self._numel, self._numel + len(data)), data, batch_size=None)
@@ -113,10 +114,8 @@ class GlycanInMemoryDataset(InMemoryDataset):
             transform: Optional[Callable] = None,
             pre_transform: Optional[Callable] = None,
             pre_filter: Optional[Callable] = None,
-            path_idx: int = 0,
-            force_reload: bool = False,
             log: bool = True,
-            **dataset_args: dict[str, Any],
+            force_reload: bool = False,
     ):
         """
         Initialize the dataset with the given parameters.
@@ -130,8 +129,13 @@ class GlycanInMemoryDataset(InMemoryDataset):
             path_idx: The index of the processed file name to use
             **dataset_args: Additional arguments to pass to the dataset
         """
+        if getattr(self, 'parent', GlycanInMemoryDataset).__name__ != "GlycanInMemoryDataset":
+            super(InMemoryDataset, self).__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
+            return
+        self.tmp_data_storage = []
         super().__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
-        self.data, self.dataset_args = torch.load(self.processed_paths[path_idx], weights_only=False)
+        self.data, self.dataset_args = torch.load(self.processed_paths[self.path_idx], weights_only=False)
+        print(f"Loaded {len(self.data)} entries from {self.processed_paths[self.path_idx]} in memory.")
 
     def __len__(self) -> int:
         """Return the length of the dataset."""
@@ -145,12 +149,11 @@ class GlycanInMemoryDataset(InMemoryDataset):
         """Return the item at the given index."""
         return self.data[item] if self.transform is None else self.transform(self.data[item])
 
-    @property
-    def processed_paths(self) -> list[str]:
-        """Return the list of processed paths."""
-        return [str(Path(self.root) / f) for f in self.processed_file_names]
+    def __getitems__(self, indices):
+        data = [self.data[index] for index in indices]
+        return data if self.transform is None else self.transform(data)
 
-    def process_(self, data: list[HeteroData], path_idx: int = 0, *args, **kwargs) -> None:
+    def process_(self, data: list[HeteroData], path_idx: int = 0, final: bool = True) -> None:
         """
         Filter, process the data and store it at the given path index.
 
@@ -158,17 +161,12 @@ class GlycanInMemoryDataset(InMemoryDataset):
             data: The data to process
             path_idx: The index of the processed file name to use
         """
-        if self.pre_filter is not None:
-            data = [d for d in data if self.pre_filter(d)]
-        if self.pre_transform is not None:
-            # data = [self.pre_transform(d) for d in data]
-            data = self.pre_transform(data)
-
-        torch.save((data, self.dataset_args), self.processed_paths[path_idx])
+        self.tmp_data_storage.extend(data)
+        if final:
+            torch.save((self.tmp_data_storage, self.dataset_args), self.processed_paths[path_idx])
 
 
-# class GlycanDataset(GlycanOnDiskDataset):
-class GlycanDataset(GlycanInMemoryDataset):
+class GlycanDataset(GlycanInMemoryDataset, GlycanOnDiskDataset):
     def __init__(
             self,
             root: str | Path,
@@ -179,6 +177,7 @@ class GlycanDataset(GlycanInMemoryDataset):
             pre_transform: Optional[Callable] = None,
             path_idx: int = 0,
             force_reload: bool = False,
+            in_memory: bool = True,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -195,13 +194,31 @@ class GlycanDataset(GlycanInMemoryDataset):
         """
         self.filename = Path(filename)
         self.dataset_args = dataset_args
-        super().__init__(root=str(Path(root) / f"{self.filename.stem}_{hash_code}"), schema=schema,
-                         transform=transform, pre_transform=pre_transform, path_idx=path_idx, force_reload=force_reload)
+        self.in_memory = in_memory
+        self.path_idx = path_idx
+        self.schema = schema
+        self.parent = GlycanInMemoryDataset if in_memory else GlycanOnDiskDataset
+        super().__init__(root=str(Path(root) / f"{self.filename.stem}_{hash_code}"),
+                         transform=transform, pre_transform=pre_transform, force_reload=force_reload)
 
     @property
     def processed_paths(self) -> list[str]:
         """Return the list of processed paths."""
         return [str(Path(self.root) / f) for f in self.processed_file_names]
+    
+    def __getitems__(self, indices):
+        return self.parent.__getitems__(self, indices)
+    
+    def get(self, idx: int) -> BaseData:
+        return self.parent.get(self, idx)
+    
+    def __len__(self) -> int:
+        """Return the length of the dataset."""
+        return self.parent.__len__(self)
+    
+    def __getitem__(self, idx: int):
+        """Return the item at the given index."""
+        return self.parent.__getitem__(self, idx)
 
     def process_(self, data: list[HeteroData], path_idx: int = 0, final: bool = True) -> None:
         """
@@ -216,7 +233,7 @@ class GlycanDataset(GlycanInMemoryDataset):
         if self.pre_transform is not None:
             data = self.pre_transform(data)
 
-        super(GlycanDataset, self).process_(data, path_idx, final)
+        self.parent.process_(self, data, path_idx, final)
 
 
 class PretrainGDs(GlycanDataset):
@@ -229,6 +246,7 @@ class PretrainGDs(GlycanDataset):
             transform: Optional[Callable] = None,
             pre_transform: Optional[Callable] = None,
             force_reload: bool = False,
+            in_memory: bool = True,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -243,12 +261,13 @@ class PretrainGDs(GlycanDataset):
             **dataset_args: Additional arguments to pass to the dataset
         """
         super().__init__(root=root, filename=filename, hash_code=hash_code, schema=schema, transform=transform,
-                         pre_transform=pre_transform, force_reload=force_reload, **dataset_args)
+                         pre_transform=pre_transform, force_reload=force_reload, in_memory=in_memory, **dataset_args)
 
     @property
     def processed_file_names(self) -> Union[str, list[str], tuple[str, ...]]:
         """Return the list of processed file names"""
-        return [self.filename.stem + ".pt"]
+        ending = ".pt" if not self.in_memory else ".pim"
+        return [self.filename.stem + ending]
 
     def process(self) -> None:
         """Process the data and store it."""
@@ -281,6 +300,7 @@ class DownstreamGDs(GlycanDataset):
             transform: Optional[Callable] = None,
             pre_transform: Optional[Callable] = None,
             force_reload: bool = False,
+            in_memory: bool = True,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -291,18 +311,23 @@ class DownstreamGDs(GlycanDataset):
             filename: The filename of the data to process
             split: The split to use, e.g., train, val, test
             hash_code: The hash code to use for the processed data
+            schema: The schema to use for the dataset
             transform: The transform to apply to the data
             pre_transform: The pre-transform to apply to the data
+            force_reload: Whether to force reload the dataset
+            in_memory: Whether to load the dataset into memory
             **dataset_args: Additional arguments to pass to the dataset
         """
         self.split = split
+        print(split, self.splits[split])
         super().__init__(root=root, filename=filename, hash_code=hash_code, schema=schema, transform=transform,
-                         pre_transform=pre_transform, path_idx=self.splits[split], force_reload=force_reload, **dataset_args)
+                         pre_transform=pre_transform, path_idx=self.splits[split], force_reload=force_reload, in_memory=in_memory, **dataset_args)
 
     @property
     def processed_file_names(self) -> Union[str, list[str], tuple[str, ...]]:
         """Return the list of processed file names."""
-        return [split + ".pt" for split in self.splits.keys()]
+        ending = ".pt" if not self.in_memory else ".pim"
+        return [split + ending for split in self.splits.keys()]
 
     def to_statistical_learning(self) -> tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
         """
@@ -330,7 +355,7 @@ class DownstreamGDs(GlycanDataset):
 
         # If the label is not given, use all columns except IUPAC and split
         if "label" not in self.dataset_args:
-            self.dataset_args["label"] = [x for x in df.columns if x not in {"IUPAC", "split", "red_mz"}]
+            self.dataset_args["label"] = [x for x in df.columns if x not in {"IUPAC", "SMILES", "split", "red_mz"}]
 
         # Compute the number of classes
         if self.dataset_args["task"] != "classification":
@@ -353,6 +378,9 @@ class DownstreamGDs(GlycanDataset):
             d = gs.query(row["IUPAC"])
             if d is None:
                 continue
+            if "{" in row["IUPAC"] or "?" in row["IUPAC"]:
+                print("SLIP:", row["IUPAC"])
+                print(d)
             if self.dataset_args["task"] in {"regression", "spectrum"} or len(self.dataset_args["label"]) == 1:
                 d["y"] = torch.tensor(list(row[self.dataset_args["label"]].values)).reshape(1, -1)
             elif len(self.dataset_args["label"]) > 1:
@@ -379,6 +407,7 @@ class LGIDataset(DownstreamGDs):
             pre_transform: Optional[Callable] = None,
             force_reload: bool = False,
             schema: Schema = object,
+            in_memory: bool = False,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -394,7 +423,7 @@ class LGIDataset(DownstreamGDs):
             **dataset_args: Additional arguments to pass to the dataset
         """
         super().__init__(root=root, filename=filename, split=split, hash_code=hash_code, schema=schema, transform=transform,
-                         pre_transform=pre_transform, force_reload=force_reload, **dataset_args)
+                         pre_transform=pre_transform, force_reload=force_reload, in_memory=False, **dataset_args)
     
     def process(self) -> None:
         """Process the data and store it."""
@@ -477,13 +506,14 @@ class ContrastiveLGIDataset(LGIDataset):
             **dataset_args: Additional arguments to pass to the dataset
         """
         super().__init__(root=root, filename=filename, split=split, hash_code=hash_code, schema=(object, object), transform=transform,
-                         pre_transform=pre_transform, force_reload=force_reload, **dataset_args)
-    def _inter_process(self, data: list[HeteroData], path_idx: int) -> None:
-        db = self.get_db(path_idx)
-        if len(data) != 0:
-            self.db.multi_insert(range(len(data)), data, batch_size=None)
-        db.close()
-        torch.save(self.dataset_args, Path(self.processed_paths[path_idx]).with_suffix(".pth"))
+                         pre_transform=pre_transform, force_reload=force_reload, in_memory=False, **dataset_args)
+    
+    # def _inter_process(self, data: list[HeteroData], path_idx: int) -> None:
+    #     db = self.get_db(path_idx)
+    #     if len(data) != 0:
+    #         self.db.multi_insert(range(len(data)), data, batch_size=None)
+    #     db.close()
+    #     torch.save(self.dataset_args, Path(self.processed_paths[path_idx]).with_suffix(".pth"))
 
 
     def process_pkl(self) -> None:

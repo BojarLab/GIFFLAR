@@ -98,6 +98,9 @@ def iupac2mol(iupac: str) -> Optional[HeteroData]:
         A HeteroData object containing the IUPAC string, the SMILES representation, the RDKit molecule, and the
         monosaccharide tree
     """
+    if "{" in iupac or "?" in iupac:
+        return None
+
     # convert the IUPAC string using GlyLES
     glycan = glyles.Glycan(iupac)
     # print(glycan.get_smiles())

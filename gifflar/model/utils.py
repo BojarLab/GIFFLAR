@@ -30,9 +30,9 @@ class EmbeddingStorage(GlycanStorage):
         self.data = self._load()
 
     def query(self, query: str) -> torch.Tensor:
-        if query not in self.data:
+        if query not in self.data or self.data[query] is None:
             try:
-                self.data[query] = self.encoder(query).mean(dim=1)  # May be hard-coded to GlyLM encoders?! Encoder output has to be a tensor of token embeddings
+                self.data[query] = self.encoder(query)#.mean(dim=1)  # May be hard-coded to GlyLM encoders?! Encoder output has to be a tensor of token embeddings
             except Exception as e:
                 print(e)
                 self.data[query] = None

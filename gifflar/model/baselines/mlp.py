@@ -1,9 +1,43 @@
-from typing import Any
+from typing import Any, Literal
 
 import torch
+from torch import nn
 
 from gifflar.data.hetero import HeteroDataBatch
 from gifflar.model.downstream import DownstreamGGIN
+
+
+def build_mlp(input_dim: int, hidden_dim: int, num_predictions: int, size: Literal["small", "medium", "large"] = "small", dropout: float = 0.3) -> torch.nn.Module:
+    if size == "small":
+        return nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.PReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, num_predictions)
+        )
+    elif size == "medium":
+        return nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.PReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.PReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, num_predictions)
+        )
+    elif size == "large":
+        return nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.PReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.PReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.PReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, num_predictions)
+        )
 
 
 class MLP(DownstreamGGIN):
@@ -11,7 +45,14 @@ class MLP(DownstreamGGIN):
         super().__init__(*args, **kwargs)
 
         del self.convs
-
+        del self.embedding
+        self.head = build_mlp(
+            input_dim=kwargs["feat_dim"],
+            hidden_dim=kwargs["hidden_dim"],
+            num_predictions=kwargs["output_dim"],
+        )
+    
+    
     def forward(self, batch: HeteroDataBatch) -> dict[str, torch.Tensor]:
         """
         Make predictions based on the molecular fingerprint.

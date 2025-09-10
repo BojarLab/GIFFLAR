@@ -39,7 +39,22 @@ MODELS = {
 }
 
 
-def setup(count: int = 4, **kwargs: Any) -> tuple[dict, DownstreamGDM, Logger | None, dict | None]:
+def skippable(**kwargs: Any) -> bool:
+    """
+    Check if a model training can be skipped.
+
+    Params:
+        kwargs: The configuration for the training.
+
+    Returns:
+        True if the model training can be skipped, False otherwise.
+    """
+    if kwargs["seed"] == 42 and kwargs["dataset"]["name"] == "Glycosylation":
+        return True
+    return False
+
+
+def setup(count: int = 4, **kwargs: Any) -> tuple[dict, DownstreamGDM, CSVLogger | None, dict | None]:
     """
     Set up the training environment.
 
@@ -60,7 +75,8 @@ def setup(count: int = 4, **kwargs: Any) -> tuple[dict, DownstreamGDM, Logger | 
     datamodule = DownstreamGDM(
         root=kwargs["root_dir"], filename=data_config["filepath"], hash_code=kwargs["hash"],
         batch_size=kwargs["model"].get("batch_size", 1), transform=None,
-        pre_transform=get_pretransforms(data_config["name"], **(kwargs.get("pre-transforms", None) or {})), **data_config,
+        pre_transform=get_pretransforms(data_config["name"], **(kwargs.get("pre-transforms", None) or {})), 
+        in_memory=kwargs["dataset"]["task"] != "spectrum", **data_config,
     )
     data_config["num_classes"] = datamodule.train.dataset_args["num_classes"]
     kwargs["dataset"]["filepath"] = str(data_config["filepath"])
@@ -88,6 +104,9 @@ def fit(**kwargs: Any) -> None:
     Params:
         kwargs: The configuration for the training.
     """
+    if skippable(**kwargs):
+        return
+    
     data_config, datamodule, logger, metrics = setup(**kwargs)
 
     # initialize the model and extract the data
@@ -144,19 +163,36 @@ def fit(**kwargs: Any) -> None:
     telegram(f"Fitted {kwargs['model']['name']} (Seed: {kwargs['seed']}) on {kwargs['dataset']['name']} in {time.time() - start:.2f} seconds")
 
 
-def train(**kwargs: Any) -> None:
+def train(ckpt_file: Path | None = None, **kwargs: Any) -> None:
     """
     Train a deep learning model.
 
     Params:
         kwargs: The configuration for the training.
     """
+    # skip already trained models
+    # if skippable(**kwargs):
+    #     return
+    
     data_config, datamodule, logger, _ = setup(3, **kwargs)
     model = MODELS[kwargs["model"]["name"]](output_dim=data_config["num_classes"], task=data_config["task"],
                                             pre_transform_args=kwargs.get("pre-transforms", {}), **kwargs["model"])
+    
+    if ckpt_file is not None:
+        with open(Path(logger.log_dir) / "resuming.txt", "w") as f:
+            print(f"Resuming from {ckpt_file.parent.parent}", file=f)
+    
     print("Using device", "CUDA" if torch.cuda.is_available() else "CPU")
     trainer = Trainer(
         callbacks=[
+            ModelCheckpoint(
+                dirpath=Path(logger.log_dir) / "weights", 
+                monitor="val/loss", 
+                mode="min", 
+                save_last=True, 
+                save_top_k=1, 
+                save_weights_only=False,
+            ),
             RichModelSummary(),
             RichProgressBar(),
         ],
@@ -167,7 +203,7 @@ def train(**kwargs: Any) -> None:
         # accelerator="cpu",
     )
     start = time.time()
-    trainer.fit(model, datamodule)
+    trainer.fit(model, datamodule, ckpt_path=ckpt_file)
     print("Training took", time.time() - start, "s")
     telegram(f"Trained {kwargs['model']['name']} (Seed: {kwargs['seed']}) on {kwargs['dataset']['name']} in {time.time() - start:.2f} seconds")
 
@@ -276,7 +312,14 @@ def main(config: str | Path) -> None:
 def entry():
     parser = ArgumentParser()
     parser.add_argument("config", type=str, help="Path to YAML config file")
-    main(parser.parse_args().config)
+    if (c := Path(parser.parse_args().config)).is_file():
+        main(c)
+    elif c.is_dir():
+        if not ((c / "hparams.yaml").exists() and (c / "metrics.csv").exists() and (c / "weights" / "last.ckpt").exists()):
+            raise FileNotFoundError("One or multiple of hparams.yaml, metrics.csv, or weights/last.ckpt are missing. No training can be resumed.")
+        custom_args = read_yaml_config(c / "hparams.yaml")
+        custom_args["hash"] = hash_dict(custom_args.get("pre-transforms", {}))
+        train(ckpt_file=c / "weights" / "last.ckpt", **custom_args)
 
 
 if __name__ == '__main__':

@@ -142,3 +142,5 @@ class DownstreamGGIN(GlycanGIN):
         metrics = self.metrics[stage].compute()
         self.log_dict(metrics)
         self.metrics[stage].reset()
+
+        torch.cuda.empty_cache()

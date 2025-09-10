@@ -17,7 +17,7 @@ class GlycanDataModule(LightningDataModule):
     def __init__(
             self,
             batch_size: int = 128,
-            num_workers: int = 1,
+            num_workers: int = 0,
             **kwargs: Any
     ):
         """
@@ -39,8 +39,10 @@ class GlycanDataModule(LightningDataModule):
         Returns:
             DataLoader for the training data
         """
-        return DataLoader(self.train, batch_size=min(self.batch_size, len(self.train)), shuffle=True,
-                          collate_fn=self.collate_fn, num_workers=self.num_workers)
+        batch_size = min(self.batch_size, len(self.train))
+        return DataLoader(self.train, batch_size=batch_size, shuffle=True,
+                          collate_fn=self.collate_fn, num_workers=self.num_workers, 
+                          drop_last=len(self.train) % batch_size == 1)
 
     def val_dataloader(self) -> DataLoader:
         """
@@ -127,6 +129,7 @@ class DownstreamGDM(GlycanDataModule):
             pre_transform: Optional[Callable] = None,
             force_reload: bool = False,
             num_workers: int = 0,
+            in_memory: bool = True,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -141,20 +144,21 @@ class DownstreamGDM(GlycanDataModule):
             pre_transform: The pre-transform to apply to the data
             force_reload: Whether to force reload the data
             num_workers: The number of CPUs to use for loading the data
+            in_memory: Whether to load the data into memory
             **dataset_args: Additional arguments to pass to the DownstreamGDs
         """
         super().__init__(batch_size, num_workers=num_workers)
         self.train = self.ds_class(
             root=root, filename=filename, split="train", hash_code=hash_code, transform=transform,
-            pre_transform=pre_transform, force_reload=force_reload, **dataset_args,
+            pre_transform=pre_transform, force_reload=force_reload, in_memory=in_memory, **dataset_args,
         )
         self.val = self.ds_class(
             root=root, filename=filename, split="val", hash_code=hash_code, transform=transform,
-            pre_transform=pre_transform, **dataset_args,
+            pre_transform=pre_transform, force_reload=force_reload, in_memory=in_memory, **dataset_args,
         )
         self.test = self.ds_class(
             root=root, filename=filename, split="test", hash_code=hash_code, transform=transform,
-            pre_transform=pre_transform, **dataset_args,
+            pre_transform=pre_transform, force_reload=force_reload, in_memory=in_memory, **dataset_args,
         )
 
 

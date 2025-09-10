@@ -140,7 +140,7 @@ class LGI_Model(LightningModule):
         return self.shared_step(batch, "test", batch_idx, dataloader_idx)
 
     def predict_step(self, batch: HeteroData, batch_idx: int = 0, dataloader_idx: int = 0) -> dict[str, torch.Tensor]:
-        fwd_dict = self(batch, "test", batch_idx, dataloader_idx)
+        fwd_dict = self(batch)
         fwd_dict["IUPAC"] = batch["IUPAC"]
         fwd_dict["seq"] = batch["aa_seq"]
         return fwd_dict
@@ -177,6 +177,6 @@ class LGI_Model(LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return {
             "optimizer": optimizer,
-            "lr_scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5),
+            "lr_scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.1, patience=10),
             "monitor": "val/loss",
         }

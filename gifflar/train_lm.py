@@ -70,7 +70,7 @@ def train(**kwargs):
         save_strategy="epoch",
         # fp16=True,
         # gradient_checkpointing=True,
-        dataloader_num_workers=1,
+        dataloader_num_workers=0,
         # use_cpu=True,
     )
 

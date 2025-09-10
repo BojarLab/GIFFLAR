@@ -245,7 +245,7 @@ def get_metrics(
         m = MetricCollection([
             MeanSquaredError(),
             MeanAbsoluteError(),
-            R2Score(num_outputs=n_outputs),
+            R2Score(),
         ])
     else:
         # Based on the number of outputs, the metrics need different arguments

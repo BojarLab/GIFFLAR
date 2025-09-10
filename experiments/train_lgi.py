@@ -69,7 +69,7 @@ def train(contrastive: bool = False, ckpt_file: Path | None = None, **kwargs):
 
     datamodule = GDM(
         root=kwargs["root_dir"], filename=kwargs["origin"], hash_code=kwargs["hash"],
-        batch_size=kwargs["model"].get("batch_size", 1), transform=None, num_workers=12,
+        batch_size=kwargs["model"].get("batch_size", 1), transform=None, num_workers=0,
         pre_transform=get_pretransforms("", **(kwargs["pre-transforms"] or {})),
     )
     add_validation = []
@@ -77,7 +77,7 @@ def train(contrastive: bool = False, ckpt_file: Path | None = None, **kwargs):
     for entry in kwargs["add_valid"]:
         add_validation.append(LGI_GDM(
             root=kwargs["root_dir"], filename=entry["path"], hash_code=kwargs["hash"],
-            batch_size=kwargs["model"].get("batch_size", 1), transform=None, num_workers=12,
+            batch_size=kwargs["model"].get("batch_size", 1), transform=None, num_workers=0,
             pre_transform=get_pretransforms("", **(kwargs["pre-transforms"] or {})), 
         ))
         add_tasks.append((entry["name"], entry["task"]))
@@ -120,8 +120,8 @@ def train(contrastive: bool = False, ckpt_file: Path | None = None, **kwargs):
         logger=logger,
         max_epochs=kwargs["model"]["epochs"],
         accelerator="gpu",
-        limit_train_batches=10,
-        limit_val_batches=10,
+        # limit_train_batches=10,
+        # limit_val_batches=10,
     )
     start = time.time()
     trainer.fit(

@@ -3,8 +3,8 @@ seed: 42
 #logs_dir: /home/daniel/Data1/roman/GIFFLAR/lgi_logs
 #origin: /home/daniel/Desktop/GIFFLAR/lgi_data_full.pkl
 root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_data
-logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_logs
-origin: /home/rjo21/Desktop/GIFFLAR/lgi_data_20.pkl
+logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_logs_final
+origin: /home/rjo21/Desktop/GIFFLAR/lgi_data_full.pkl
 model:
   glycan_encoder:
     name: gifflar
@@ -14,6 +14,7 @@ model:
     pooling: global_mean
   lectin_encoder:
     name: ESM
+    le_layer_num: 33
     layer_num: 33
   batch_size: 256
   epochs: 100

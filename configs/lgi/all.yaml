@@ -17,14 +17,8 @@ model:
       hidden_dim: 1024
       num_layers: 16
   lectin_encoder:
-    #- name: ESM
-    #  layer_num: 33
-    #- name: Ankh
-    #  layer_num: 48
-    #- name: ProtBert
-    #  layer_num: 30
-    - name: ProstT5
-      layer_num: 24
+    - name: ESM
+      layer_num: 33
   batch_size: 256
   epochs: 100
   learning_rate: 0.001
