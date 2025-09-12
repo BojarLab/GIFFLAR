@@ -17,96 +17,6 @@ from gifflar.data.utils import GlycanStorage
 
 PROCESS_CHUNK_SIZE = 10_000
 
-class GlycanOnDiskDataset(OnDiskDataset):
-    """IMPORTANT: Does not work with multiple workers. In DataLoader, num_workers must be 0."""
-    def __init__(
-            self,
-            root: str,
-            transform: Optional[Callable] = None,
-            pre_transform: Optional[Callable] = None,
-            pre_filter: Optional[Callable] = None,
-            log: bool = True,
-            force_reload: bool = False,
-    ) -> None:
-        if getattr(self, 'parent', GlycanOnDiskDataset).__name__ != "GlycanOnDiskDataset":
-            super(OnDiskDataset, self).__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
-            return
-        self.backend = "sqlite"  # "sqlite" or "rocksdb"
-
-        self._db: Optional[Database] = None
-        self._numel: Optional[int] = None
-        super(OnDiskDataset, self).__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
-        self.dataset_args = torch.load(Path(self.processed_paths[self.path_idx]).with_suffix(".pth"), weights_only=False)
-        print(f"Loading entries for {self.processed_paths[self.path_idx]} from disk.")
-
-    def _process(self):
-        if self.force_reload:
-            print("Remove root", self.root)
-            shutil.rmtree(self.root, ignore_errors=True)
-            self.force_reload = False
-        super(OnDiskDataset, self)._process()
-
-    def get_db(self, path_idx):
-        kwargs = {}
-        cls = self.BACKENDS[self.backend]
-        if issubclass(cls, SQLiteDatabase):
-            kwargs['name'] = self.__class__.__name__
-
-        os.makedirs(self.processed_dir, exist_ok=True)
-        path = self.processed_paths[path_idx]
-        db = cls(path=path, schema=self.schema, **kwargs)
-        return db
-
-    @property
-    def db(self) -> Database:
-        r"""Returns the underlying :class:`Database`."""
-        if self._db is None:
-            self._db = self.get_db(self.path_idx)
-            self._numel = len(self._db)
-        return self._db
-
-    def get(self, idx: int) -> BaseData:
-        d = super().get(idx)
-        if self.transform is not None:
-            d = self.transform(d)
-        return d
-
-    def __getitem__(self, idx: int):
-        return self.get(idx)
-
-    def __getitems__(self, indices):
-        return [self.get(idx) for idx in indices]
-    
-    def __len__(self) -> int:
-        """Return the length of the dataset."""
-        return super().len()
-
-    def process_(self, data: list[HeteroData], path_idx: int = 0, final: bool = True) -> None:
-        if len(data) != 0:
-            print("Processing", len(data), "entries")
-            self.db.multi_insert(range(self._numel, self._numel + len(data)), data, batch_size=None)
-            self._numel += len(data)
-        if final:
-            self.db.close()
-            self._db = None
-            print("Saving dataset arguments to", Path(self.processed_paths[path_idx]).with_suffix(".pth"))
-            torch.save(self.dataset_args, Path(self.processed_paths[path_idx]).with_suffix(".pth"))
-    
-    def serialize(self, data: BaseData) -> Any:
-        r"""Serializes the :class:`~torch_geometric.data.Data` or
-        :class:`~torch_geometric.data.HeteroData` object into the expected DB
-        schema.
-        """
-        return data
-
-    def deserialize(self, data: Any) -> BaseData:
-        r"""Deserializes the DB entry into a
-        :class:`~torch_geometric.data.Data` or
-        :class:`~torch_geometric.data.HeteroData` object.
-        """
-        return data
-
-
 class GlycanInMemoryDataset(InMemoryDataset):
     def __init__(
             self,
@@ -129,9 +39,6 @@ class GlycanInMemoryDataset(InMemoryDataset):
             path_idx: The index of the processed file name to use
             **dataset_args: Additional arguments to pass to the dataset
         """
-        if getattr(self, 'parent', GlycanInMemoryDataset).__name__ != "GlycanInMemoryDataset":
-            super(InMemoryDataset, self).__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
-            return
         self.tmp_data_storage = []
         super().__init__(root, transform, pre_transform, pre_filter, log=log, force_reload=force_reload)
         self.data, self.dataset_args = torch.load(self.processed_paths[self.path_idx], weights_only=False)
@@ -140,10 +47,6 @@ class GlycanInMemoryDataset(InMemoryDataset):
     def __len__(self) -> int:
         """Return the length of the dataset."""
         return self.data.__len__()
-
-    def len(self) -> int:
-        """Return the length of the dataset."""
-        return len(self)
 
     def __getitem__(self, item) -> Any:
         """Return the item at the given index."""
@@ -166,7 +69,7 @@ class GlycanInMemoryDataset(InMemoryDataset):
             torch.save((self.tmp_data_storage, self.dataset_args), self.processed_paths[path_idx])
 
 
-class GlycanDataset(GlycanInMemoryDataset, GlycanOnDiskDataset):
+class GlycanDataset(GlycanInMemoryDataset):
     def __init__(
             self,
             root: str | Path,
@@ -177,7 +80,6 @@ class GlycanDataset(GlycanInMemoryDataset, GlycanOnDiskDataset):
             pre_transform: Optional[Callable] = None,
             path_idx: int = 0,
             force_reload: bool = False,
-            in_memory: bool = True,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -194,10 +96,8 @@ class GlycanDataset(GlycanInMemoryDataset, GlycanOnDiskDataset):
         """
         self.filename = Path(filename)
         self.dataset_args = dataset_args
-        self.in_memory = in_memory
         self.path_idx = path_idx
         self.schema = schema
-        self.parent = GlycanInMemoryDataset if in_memory else GlycanOnDiskDataset
         super().__init__(root=str(Path(root) / f"{self.filename.stem}_{hash_code}"),
                          transform=transform, pre_transform=pre_transform, force_reload=force_reload)
 
@@ -205,20 +105,6 @@ class GlycanDataset(GlycanInMemoryDataset, GlycanOnDiskDataset):
     def processed_paths(self) -> list[str]:
         """Return the list of processed paths."""
         return [str(Path(self.root) / f) for f in self.processed_file_names]
-    
-    def __getitems__(self, indices):
-        return self.parent.__getitems__(self, indices)
-    
-    def get(self, idx: int) -> BaseData:
-        return self.parent.get(self, idx)
-    
-    def __len__(self) -> int:
-        """Return the length of the dataset."""
-        return self.parent.__len__(self)
-    
-    def __getitem__(self, idx: int):
-        """Return the item at the given index."""
-        return self.parent.__getitem__(self, idx)
 
     def process_(self, data: list[HeteroData], path_idx: int = 0, final: bool = True) -> None:
         """
@@ -233,7 +119,7 @@ class GlycanDataset(GlycanInMemoryDataset, GlycanOnDiskDataset):
         if self.pre_transform is not None:
             data = self.pre_transform(data)
 
-        self.parent.process_(self, data, path_idx, final)
+        super().process_(data, path_idx, final)
 
 
 class PretrainGDs(GlycanDataset):
@@ -246,7 +132,6 @@ class PretrainGDs(GlycanDataset):
             transform: Optional[Callable] = None,
             pre_transform: Optional[Callable] = None,
             force_reload: bool = False,
-            in_memory: bool = True,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -261,13 +146,12 @@ class PretrainGDs(GlycanDataset):
             **dataset_args: Additional arguments to pass to the dataset
         """
         super().__init__(root=root, filename=filename, hash_code=hash_code, schema=schema, transform=transform,
-                         pre_transform=pre_transform, force_reload=force_reload, in_memory=in_memory, **dataset_args)
+                         pre_transform=pre_transform, force_reload=force_reload, **dataset_args)
 
     @property
     def processed_file_names(self) -> Union[str, list[str], tuple[str, ...]]:
         """Return the list of processed file names"""
-        ending = ".pt" if not self.in_memory else ".pim"
-        return [self.filename.stem + ending]
+        return [self.filename.stem + ".pim"]
 
     def process(self) -> None:
         """Process the data and store it."""
@@ -300,7 +184,6 @@ class DownstreamGDs(GlycanDataset):
             transform: Optional[Callable] = None,
             pre_transform: Optional[Callable] = None,
             force_reload: bool = False,
-            in_memory: bool = True,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -315,19 +198,17 @@ class DownstreamGDs(GlycanDataset):
             transform: The transform to apply to the data
             pre_transform: The pre-transform to apply to the data
             force_reload: Whether to force reload the dataset
-            in_memory: Whether to load the dataset into memory
             **dataset_args: Additional arguments to pass to the dataset
         """
         self.split = split
         print(split, self.splits[split])
         super().__init__(root=root, filename=filename, hash_code=hash_code, schema=schema, transform=transform,
-                         pre_transform=pre_transform, path_idx=self.splits[split], force_reload=force_reload, in_memory=in_memory, **dataset_args)
+                         pre_transform=pre_transform, path_idx=self.splits[split], force_reload=force_reload, **dataset_args)
 
     @property
     def processed_file_names(self) -> Union[str, list[str], tuple[str, ...]]:
         """Return the list of processed file names."""
-        ending = ".pt" if not self.in_memory else ".pim"
-        return [split + ending for split in self.splits.keys()]
+        return [split + ".pim" for split in self.splits.keys()]
 
     def to_statistical_learning(self) -> tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
         """
@@ -392,184 +273,5 @@ class DownstreamGDs(GlycanDataset):
                 d["red_mz"] = row["red_mz"]
             data.append(d)
 
-        gs.close()
-        self.process_(data, path_idx=self.splits[self.split], final=True)
-
-
-class LGIDataset(DownstreamGDs):
-    def __init__(
-            self,
-            root: str | Path,
-            filename: str | Path,
-            split: str,
-            hash_code: str,
-            transform: Optional[Callable] = None,
-            pre_transform: Optional[Callable] = None,
-            force_reload: bool = False,
-            schema: Schema = object,
-            in_memory: bool = False,
-            **dataset_args: dict[str, Any],
-    ):
-        """
-        Initialize the dataset for downstream tasks with the given parameters.
-
-        Args:
-            root: The root directory to store the processed data
-            filename: The filename of the data to process
-            split: The split to use, e.g., train, val, test
-            hash_code: The hash code to use for the processed data
-            transform: The transform to apply to the data
-            pre_transform: The pre-transform to apply to the data
-            **dataset_args: Additional arguments to pass to the dataset
-        """
-        super().__init__(root=root, filename=filename, split=split, hash_code=hash_code, schema=schema, transform=transform,
-                         pre_transform=pre_transform, force_reload=force_reload, in_memory=False, **dataset_args)
-    
-    def process(self) -> None:
-        """Process the data and store it."""
-        if str(self.filename).endswith(".pkl"):
-            self.process_pkl()
-        elif str(self.filename)[-4:] in {".csv", ".tsv"}:
-            self.process_csv(sep="," if str(self.filename)[-3] == "c" else "\t")
-
-    def process_pkl(self) -> None:
-        with open(self.filename, "rb") as f:
-            inter, lectin_map, glycan_map = pickle.load(f)
-
-        # Load the glycan storage to speed up the preprocessing
-        gs = GlycanStorage(Path(self.root).parent)
-        data = []
-        for i, (lectin_id, glycan_id, value, split) in tqdm(enumerate(inter)):
-            if len(data) % PROCESS_CHUNK_SIZE == 0:
-                self.process_(data, path_idx=self.splits[self.split], final=False)
-                del data
-                data = []
-            if split != self.split:
-                continue
-            d = gs.query(glycan_map[glycan_id])
-            if d is None:
-                continue
-            d["aa_seq"] = lectin_map[lectin_id]
-            d["y"] = torch.tensor([value])
-            d["ID"] = i
-            data.append(d)
-
-        gs.close()
-        self.process_(data, path_idx=self.splits[self.split], final=True)
-
-    def process_csv(self, sep: str) -> None:
-        inter = pd.read_csv(self.filename, sep=sep)
-        gs = GlycanStorage(Path(self.root).parent)
-        data = []
-        for i, (_, row) in tqdm(enumerate(inter.iterrows())):
-            if len(data) % PROCESS_CHUNK_SIZE == 0:
-                self.process_(data, path_idx=self.splits[self.split], final=False)
-                del data
-                data = []
-            split = getattr(row, "split", "train")
-            if split != self.split:
-                continue
-            d = gs.query(row["IUPAC"])
-            if d is None:
-                continue
-            d["aa_seq"] = row["seq"]
-            d["y"] = torch.tensor([getattr(row, "y", 0)])
-            d["ID"] = i
-            data.append(d)
-        
-        gs.close()
-        self.process_(data, path_idx=self.splits[self.split], final=True)
-
-
-class ContrastiveLGIDataset(LGIDataset):
-    def __init__(
-            self,
-            root: str | Path,
-            filename: str | Path,
-            split: str,
-            hash_code: str,
-            transform: Optional[Callable] = None,
-            pre_transform: Optional[Callable] = None,
-            force_reload: bool = False,
-            **dataset_args: dict[str, Any],
-    ):
-        """
-        Initialize the dataset for downstream tasks with the given parameters.
-
-        Args:
-            root: The root directory to store the processed data
-            filename: The filename of the data to process
-            split: The split to use, e.g., train, val, test
-            hash_code: The hash code to use for the processed data
-            transform: The transform to apply to the data
-            pre_transform: The pre-transform to apply to the data
-            **dataset_args: Additional arguments to pass to the dataset
-        """
-        super().__init__(root=root, filename=filename, split=split, hash_code=hash_code, schema=(object, object), transform=transform,
-                         pre_transform=pre_transform, force_reload=force_reload, in_memory=False, **dataset_args)
-    
-    # def _inter_process(self, data: list[HeteroData], path_idx: int) -> None:
-    #     db = self.get_db(path_idx)
-    #     if len(data) != 0:
-    #         self.db.multi_insert(range(len(data)), data, batch_size=None)
-    #     db.close()
-    #     torch.save(self.dataset_args, Path(self.processed_paths[path_idx]).with_suffix(".pth"))
-
-
-    def process_pkl(self) -> None:
-        with open(self.filename, "rb") as f:
-            lgis = pickle.load(f)
-
-        # Load the glycan storage to speed up the preprocessing
-        gs = GlycanStorage(Path(self.root).parent)
-        data = []
-        for i, (lectin, glycan, glycan_val, decoy, decoy_val, split) in tqdm(enumerate(lgis)):
-            if len(data) % PROCESS_CHUNK_SIZE == 0:
-                self.process_(data, path_idx=self.splits[self.split], final=False)
-                del data
-                data = []
-            if split != self.split:
-                continue
-            try:
-                d = gs.query(glycan)
-                if d is None:
-                    continue
-                d["aa_seq"] = lectin
-                d["y"] = torch.tensor([glycan_val])
-                d["ID"] = i
-
-                decoy = gs.query(decoy)
-                decoy["y"] = torch.tensor([decoy_val])
-                decoy["ID"] = i
-
-                data.append((d, decoy))
-            except Exception as e:
-                print(e)
-                continue
-
-        gs.close()
-        self.process_(data, path_idx=self.splits[self.split], final=True)
-
-    def process_csv(self, sep):
-        inter = pd.read_csv(self.filename, sep=sep)
-        gs = GlycanStorage(Path(self.root).parent)
-        data = []
-        for i, (_, row) in tqdm(enumerate(inter.iterrows())):
-            if len(data) % PROCESS_CHUNK_SIZE == 0:
-                self.process_(data, path_idx=self.splits[self.split], final=False)
-                del data
-                data = []
-            split = getattr(row, "split", "train")
-            if split != self.split:
-                continue
-            d = gs.query(row["IUPAC"])
-            if d is None:
-                continue
-            d["aa_seq"] = row["seq"]
-            d["y"] = torch.tensor([getattr(row, "y", 0)])
-            d["ID"] = i
-            decoy = gs.query(getattr(row, "decoy", None))
-            data.append((d, decoy))
-        
         gs.close()
         self.process_(data, path_idx=self.splits[self.split], final=True)

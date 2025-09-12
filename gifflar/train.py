@@ -5,7 +5,8 @@ import time
 import copy
 
 import torch
-torch.multiprocessing.set_start_method('spawn', force=True)
+torch.cuda.empty_cache()
+# torch.multiprocessing.set_start_method('spawn')
 import yaml
 import numpy as np
 from jsonargparse import ArgumentParser
@@ -76,7 +77,7 @@ def setup(count: int = 4, **kwargs: Any) -> tuple[dict, DownstreamGDM, CSVLogger
         root=kwargs["root_dir"], filename=data_config["filepath"], hash_code=kwargs["hash"],
         batch_size=kwargs["model"].get("batch_size", 1), transform=None,
         pre_transform=get_pretransforms(data_config["name"], **(kwargs.get("pre-transforms", None) or {})), 
-        in_memory=kwargs["dataset"]["task"] != "spectrum", **data_config,
+        **data_config,
     )
     data_config["num_classes"] = datamodule.train.dataset_args["num_classes"]
     kwargs["dataset"]["filepath"] = str(data_config["filepath"])

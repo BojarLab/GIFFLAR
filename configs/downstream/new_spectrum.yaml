@@ -40,26 +40,26 @@ model:
   #   patience: 30
   #   learning_rate: 0.001
   #   optimizer: Adam
-  - name: sweetnet
-    feat_dim: 128
-    hidden_dim: 128
-    batch_size: 32
-    num_layers: 16
-    epochs: 100
-    patience: 30
-    learning_rate: 0.001
-    optimizer: Adam
-    suffix:
-  - name: gnngly
-    feat_dim: 128
-    hidden_dim: 128
-    batch_size: 32
-    num_layers: 8
-    epochs: 100
-    patience: 30
-    learning_rate: 0.001
-    optimizer: Adam
-    suffix:
+  # - name: sweetnet
+  #   feat_dim: 128
+  #   hidden_dim: 128
+  #   batch_size: 32
+  #   num_layers: 16
+  #   epochs: 100
+  #   patience: 30
+  #   learning_rate: 0.001
+  #   optimizer: Adam
+  #   suffix:
+  # - name: gnngly
+  #   feat_dim: 128
+  #   hidden_dim: 128
+  #   batch_size: 32
+  #   num_layers: 8
+  #   epochs: 100
+  #   patience: 30
+  #   learning_rate: 0.001
+  #   optimizer: Adam
+  #   suffix:
   - name: rgcn
     feat_dim: 128
     hidden_dim: 128

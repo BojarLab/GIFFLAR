@@ -5,7 +5,8 @@ import torch
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader
 
-from gifflar.data.datasets import DownstreamGDs, PretrainGDs, LGIDataset, ContrastiveLGIDataset
+from gifflar.data.datasets import DownstreamGDs, PretrainGDs
+from gifflar.data.datasets_lgi import LGIDataset, ContrastiveLGIDataset
 from gifflar.data.hetero import hetero_collate, hetero_tuple_collate
 
 
@@ -41,7 +42,7 @@ class GlycanDataModule(LightningDataModule):
         """
         batch_size = min(self.batch_size, len(self.train))
         return DataLoader(self.train, batch_size=batch_size, shuffle=True,
-                          collate_fn=self.collate_fn, num_workers=self.num_workers, 
+                          collate_fn=self.collate_fn, num_workers=6, persistent_workers=True, 
                           drop_last=len(self.train) % batch_size == 1)
 
     def val_dataloader(self) -> DataLoader:
@@ -52,7 +53,7 @@ class GlycanDataModule(LightningDataModule):
             DataLoader for the validation data
         """
         return DataLoader(self.val, batch_size=min(self.batch_size, len(self.val)), shuffle=False,
-                          collate_fn=self.collate_fn, num_workers=self.num_workers)
+                          collate_fn=self.collate_fn, num_workers=6, persistent_workers=True)
 
     def test_dataloader(self) -> DataLoader:
         """
@@ -62,7 +63,7 @@ class GlycanDataModule(LightningDataModule):
             DataLoader for the test data
         """
         return DataLoader(self.test, batch_size=min(self.batch_size, len(self.test)), shuffle=False,
-                          collate_fn=self.collate_fn, num_workers=self.num_workers)
+                          collate_fn=self.collate_fn, num_workers=6, persistent_workers=True)
 
     def predict_dataloader(self) -> DataLoader:
         """
@@ -76,7 +77,7 @@ class GlycanDataModule(LightningDataModule):
         else:
             predict = ConcatDataset([self.train, self.val])
         return DataLoader(predict, batch_size=1, shuffle=False,
-                          collate_fn=self.collate_fn, num_workers=self.num_workers)
+                          collate_fn=self.collate_fn, num_workers=6, persistent_workers=True)
 
 
 class PretrainGDM(GlycanDataModule):
@@ -129,7 +130,6 @@ class DownstreamGDM(GlycanDataModule):
             pre_transform: Optional[Callable] = None,
             force_reload: bool = False,
             num_workers: int = 0,
-            in_memory: bool = True,
             **dataset_args: dict[str, Any],
     ):
         """
@@ -144,21 +144,20 @@ class DownstreamGDM(GlycanDataModule):
             pre_transform: The pre-transform to apply to the data
             force_reload: Whether to force reload the data
             num_workers: The number of CPUs to use for loading the data
-            in_memory: Whether to load the data into memory
             **dataset_args: Additional arguments to pass to the DownstreamGDs
         """
         super().__init__(batch_size, num_workers=num_workers)
         self.train = self.ds_class(
             root=root, filename=filename, split="train", hash_code=hash_code, transform=transform,
-            pre_transform=pre_transform, force_reload=force_reload, in_memory=in_memory, **dataset_args,
+            pre_transform=pre_transform, force_reload=force_reload, **dataset_args,
         )
         self.val = self.ds_class(
             root=root, filename=filename, split="val", hash_code=hash_code, transform=transform,
-            pre_transform=pre_transform, force_reload=force_reload, in_memory=in_memory, **dataset_args,
+            pre_transform=pre_transform, force_reload=force_reload, **dataset_args,
         )
         self.test = self.ds_class(
             root=root, filename=filename, split="test", hash_code=hash_code, transform=transform,
-            pre_transform=pre_transform, force_reload=force_reload, in_memory=in_memory, **dataset_args,
+            pre_transform=pre_transform, force_reload=force_reload, **dataset_args,
         )
 
 

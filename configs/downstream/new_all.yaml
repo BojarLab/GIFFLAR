@@ -1,13 +1,13 @@
-seed: 42  # , 1234, 1227]
-root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new
-logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_new
+seed: [1234, 1227]
+root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256
+logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_new_256
 datasets:
   - name: Glycosylation
     task: classification
-  # - name: Tissue
-  #   task: multilabel
-  # - name: Taxonomy_Kingdom
-  #   task: multilabel
+  - name: Tissue
+    task: multilabel
+  - name: Taxonomy_Kingdom
+    task: multilabel
 pre-transforms:
   GIFFLARTransform:
   GNNGLYTransform:
@@ -40,7 +40,7 @@ model:
   #   optimizer: Adam
   - name: sweetnet
     feat_dim: 128
-    hidden_dim: 128
+    hidden_dim: 256
     batch_size: 32
     num_layers: 16
     epochs: 100
@@ -48,34 +48,34 @@ model:
     learning_rate: 0.001
     optimizer: Adam
     suffix:
-  # - name: gnngly
-  #   feat_dim: 128
-  #   hidden_dim: 128
-  #   batch_size: 32
-  #   num_layers: 8
-  #   epochs: 100
-  #   patience: 30
-  #   learning_rate: 0.001
-  #   optimizer: Adam
-  #   suffix:
-  # - name: rgcn
-  #   feat_dim: 128
-  #   hidden_dim: 128
-  #   batch_size: 32
-  #   num_layers: 8
-  #   epochs: 100
-  #   learning_rate: 0.001
-  #   optimizer: Adam
-  #   suffix:
-  # - name: gifflar
-  #   feat_dim: 128
-  #   hidden_dim: 128
-  #   batch_size: 32
-  #   num_layers: 8
-  #   epochs: 100
-  #   learning_rate: 0.001
-  #   optimizer: Adam
-  #   pooling: global_mean
+  - name: gnngly
+    feat_dim: 128
+    hidden_dim: 256
+    batch_size: 32
+    num_layers: 8
+    epochs: 100
+    patience: 30
+    learning_rate: 0.001
+    optimizer: Adam
+    suffix:
+  - name: rgcn
+    feat_dim: 128
+    hidden_dim: 256
+    batch_size: 32
+    num_layers: 8
+    epochs: 100
+    learning_rate: 0.001
+    optimizer: Adam
+    suffix:
+  - name: gifflar
+    feat_dim: 128
+    hidden_dim: 256
+    batch_size: 32
+    num_layers: 8
+    epochs: 100
+    learning_rate: 0.001
+    optimizer: Adam
+    pooling: global_mean
   #   suffix:
   # - name: glylm
   #   token_file: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/unique/GlyLM/bpe_glyles_2500.pkl

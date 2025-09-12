@@ -226,7 +226,6 @@ class ECFPTransform(RootTransform):
             kwargs: Additional arguments.
         """
         super().__init__(**kwargs)
-        self.ecfp = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=1024)
 
     def __call__(self, data: HeteroData) -> HeteroData:
         """
@@ -239,7 +238,7 @@ class ECFPTransform(RootTransform):
             The transformed data.
         """
         # Check if the RDKit fingerprint generator is available
-        data["fp"] = torch.tensor(self.ecfp.GetFingerprint(data["mol"]), dtype=torch.float).reshape(1, -1)
+        data["fp"] = torch.tensor(rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=1024).GetFingerprint(data["mol"]), dtype=torch.float).reshape(1, -1)
         return data
 
 
