@@ -28,8 +28,8 @@ class GNNGLY(DownstreamGGIN):
     fill in what sounds reasonable
     """
 
-    def __init__(self, feat_dim: int, hidden_dim: int, num_layers: int, output_dim: int,
-                 task: Literal["classification", "regression", "multilabel", "spectrum"], **kwargs: Any):
+    def __init__(self, feat_dim: int, hidden_dim: int, num_layers: int, output_dim: int = 1,
+                 task: Literal["classification", "regression", "multilabel", "spectrum"] | None = None, **kwargs: Any):
         """
         Initialize the model following the papers description.
 
@@ -73,7 +73,9 @@ class GNNGLY(DownstreamGGIN):
 
         # Compute the graph embeddings and make the final prediction based on this
         graph_embed = self.pooling(x, batch_ids)
-        pred = self.head(graph_embed)
+        pred = None
+        if self.task is not None:
+            pred = self.head(graph_embed)
 
         return {
             "node_embed": x,

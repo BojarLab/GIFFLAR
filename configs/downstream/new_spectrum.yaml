@@ -1,6 +1,10 @@
 seed: 42  # , 1234, 1227]
-root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new
-logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_new
+# root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new
+# logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_new
+# root_dir: /scratch/data_new
+# logs_dir: /scratch/logs_new
+root_dir: /scratch/data_new_256
+logs_dir: /scratch/logs_new_256
 datasets:
   # - name: Glycosylation
   #   task: classification
@@ -42,39 +46,39 @@ model:
   #   optimizer: Adam
   # - name: sweetnet
   #   feat_dim: 128
-  #   hidden_dim: 128
-  #   batch_size: 32
+  #   hidden_dim: 256
+  #   batch_size: 128
   #   num_layers: 16
   #   epochs: 100
   #   patience: 30
   #   learning_rate: 0.001
   #   optimizer: Adam
   #   suffix:
-  # - name: gnngly
-  #   feat_dim: 128
-  #   hidden_dim: 128
-  #   batch_size: 32
-  #   num_layers: 8
-  #   epochs: 100
-  #   patience: 30
-  #   learning_rate: 0.001
-  #   optimizer: Adam
-  #   suffix:
-  - name: rgcn
+  - name: gnngly
     feat_dim: 128
-    hidden_dim: 128
-    batch_size: 32
+    hidden_dim: 256
+    batch_size: 128
     num_layers: 8
-    epochs: 100
+    epochs: 50
+    patience: 30
     learning_rate: 0.001
     optimizer: Adam
     suffix:
+  # - name: rgcn
+  #   feat_dim: 128
+  #   hidden_dim: 256
+  #   batch_size: 128
+  #   num_layers: 8
+  #   epochs: 1
+  #   learning_rate: 0.001
+  #   optimizer: Adam
+  #   suffix:
   - name: gifflar
     feat_dim: 128
-    hidden_dim: 128
-    batch_size: 32
+    hidden_dim: 256
+    batch_size: 128
     num_layers: 8
-    epochs: 100
+    epochs: 50
     learning_rate: 0.001
     optimizer: Adam
     pooling: global_mean

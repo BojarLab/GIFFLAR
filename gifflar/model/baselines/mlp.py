@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import torch
 from torch import nn
@@ -41,19 +41,29 @@ def build_mlp(input_dim: int, hidden_dim: int, num_predictions: int, size: Liter
 
 
 class MLP(DownstreamGGIN):
-    def __init__(self, *args: Any, **kwargs: Any):
-        super().__init__(*args, **kwargs)
+    def __init__(
+            self, 
+            feat_dim: int, 
+            hidden_dim: int, 
+            output_dim: int = 1, 
+            task: Literal["regression", "classification", "multilabel", "spectrum", "spectrum"] | None = None,
+            num_layers: int = 3,
+            batch_size: int = 32,
+            **kwargs: Any
+        ):
+        super().__init__(feat_dim, hidden_dim, output_dim, task, **kwargs)
 
         del self.convs
         del self.embedding
-        self.head = build_mlp(
-            input_dim=kwargs["feat_dim"],
-            hidden_dim=kwargs["hidden_dim"],
-            num_predictions=kwargs["output_dim"],
-        )
+        if self.task is not None:
+            self.head = build_mlp(
+                input_dim=feat_dim,
+                hidden_dim=hidden_dim,
+                num_predictions=output_dim,
+            )
     
     
-    def forward(self, batch: HeteroDataBatch) -> dict[str, torch.Tensor]:
+    def forward(self, batch: HeteroDataBatch) -> dict[str, Optional[torch.Tensor]]:
         """
         Make predictions based on the molecular fingerprint.
 
@@ -66,5 +76,5 @@ class MLP(DownstreamGGIN):
         return {
             "node_embed": None,
             "graph_embed": batch["fp"],
-            "preds": self.head(batch["fp"]),
+            "preds": self.head(batch["fp"]) if hasattr(self, "head") else None,
         }

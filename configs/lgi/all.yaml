@@ -1,26 +1,47 @@
 seed: 42
-#root_dir: /home/daniel/Data1/roman/GIFFLAR/lgi_data
-#logs_dir: /home/daniel/Data1/roman/GIFFLAR/lgi_logs
-#origin: /home/daniel/Desktop/GIFFLAR/lgi_data_full.pkl
-root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_data
-logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/lgi_logs
-origin: /home/rjo21/Desktop/GIFFLAR/lgi_data_full.pkl
+# root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256
+# logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_new_256
+# origin: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256/lgi_random_small.csv
+root_dir: /scratch/data_new_256
+logs_dir: /scratch/logs_new_256
+origin: /scratch/data_new_256/lgi_random.csv
+pre-transforms:
+  GIFFLARTransform:
+  GNNGLYTransform:
+  ECFPTransform:
+  SweetNetTransform:
 model:
   glycan_encoder:
-    - name: gifflar
-      feat_dim: 128
+    - name: mlp
+      feat_dim: 1024
       hidden_dim: 1024
-      num_layers: 8
-      pooling: global_mean
+      output_dim: 1024
+      num_layers: 1
     - name: sweetnet
       feat_dim: 128
-      hidden_dim: 1024
+      hidden_dim: 256
       num_layers: 16
+      suffix:
+    - name: gnngly
+      feat_dim: 128
+      hidden_dim: 256
+      num_layers: 8
+      suffix:
+    # - name: rgcn
+    #   feat_dim: 128
+    #   hidden_dim: 256
+    #   num_layers: 8
+    #   suffix:
+    - name: gifflar
+      feat_dim: 128
+      hidden_dim: 256
+      num_layers: 8
+      pooling: global_mean
+      suffix:
   lectin_encoder:
     - name: ESM
       layer_num: 33
   batch_size: 256
-  epochs: 100
+  epochs: 25
   learning_rate: 0.001
   optimizer: Adam
-

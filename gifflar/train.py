@@ -1,4 +1,7 @@
-import os, subprocess, sys
+import os
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
+import subprocess, sys
 from pathlib import Path
 from typing import Any
 import time
@@ -7,6 +10,8 @@ import copy
 import torch
 torch.cuda.empty_cache()
 # torch.multiprocessing.set_start_method('spawn')
+torch.multiprocessing.set_sharing_strategy('file_system')
+
 import yaml
 import numpy as np
 from jsonargparse import ArgumentParser
@@ -28,7 +33,6 @@ from gifflar.pretransforms import get_pretransforms
 from gifflar.transforms import get_transforms
 from gifflar.utils import get_sl_model, get_metrics, read_yaml_config, hash_dict, unfold_config
 
-torch.multiprocessing.set_sharing_strategy('file_system')
 
 MODELS = {
     "gifflar": DownstreamGGIN,

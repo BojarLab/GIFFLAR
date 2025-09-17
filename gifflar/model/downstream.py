@@ -131,6 +131,7 @@ class DownstreamGGIN(GlycanGIN):
         # Log the loss of the model
         self.log(f"{stage}/loss", fwd_dict["loss"], batch_size=self.batch_size)
         torch.cuda.empty_cache()
+        # del batch
         return fwd_dict
 
     def shared_end(self, stage: Literal["train", "val", "test"]) -> None:

@@ -341,10 +341,11 @@ def get_spectrum(root: Path | str) -> Path:
     Returns:
         The filepath of the processed spectrum data.
     """
-    suffix = "_small"
+    suffix = ""  # "_small"
     root = Path(root)
     if not (p := root / f"spectrum{suffix}.tsv").exists():
-        df = pd.read_csv(Path("/") / "scratch" / "SCRATCH_SAS" / "roman" / "Gothenburg" / "GIFFLAR" / "spectra_data" / f"spectrum_2048{suffix}.tsv", sep="\t")
+        # df = pd.read_csv(Path("/") / "scratch" / "SCRATCH_SAS" / "roman" / "Gothenburg" / "GIFFLAR" / "spectra_data" / f"spectrum_2048{suffix}.tsv", sep="\t")
+        df = pd.read_csv(Path("/") / "scratch" / "spectra_data" / f"spectrum_2048{suffix}.tsv", sep="\t")
         df.to_csv(p, sep="\t", index=False)
     return p
 

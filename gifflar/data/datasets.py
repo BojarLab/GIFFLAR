@@ -15,8 +15,6 @@ from tqdm import tqdm
 from gifflar.data.utils import GlycanStorage
 
 
-PROCESS_CHUNK_SIZE = 10_000
-
 class GlycanInMemoryDataset(InMemoryDataset):
     def __init__(
             self,
@@ -159,10 +157,6 @@ class PretrainGDs(GlycanDataset):
         gs = GlycanStorage(Path(self.root).parent)
         with open(self.filename, "r") as glycans:
             for i, line in enumerate(glycans.readlines()):
-                if len(data) % PROCESS_CHUNK_SIZE == 0:
-                    self.process_(data, final=False)
-                    del data
-                    data = []
                 d = gs.query(line.strip())
                 d["ID"] = i
                 data.append(d)
@@ -250,10 +244,6 @@ class DownstreamGDs(GlycanDataset):
         gs = GlycanStorage(Path(self.root).parent)
         data = []
         for i, (_, row) in tqdm(enumerate(df.iterrows())):
-            if len(data) % PROCESS_CHUNK_SIZE == 0:
-                self.process_(data, path_idx=self.splits[self.split], final=False)
-                del data
-                data = []
             if row["split"] != self.split:
                 continue
             d = gs.query(row["IUPAC"])
@@ -273,5 +263,92 @@ class DownstreamGDs(GlycanDataset):
                 d["red_mz"] = row["red_mz"]
             data.append(d)
 
+        gs.close()
+        self.process_(data, path_idx=self.splits[self.split], final=True)
+
+
+class IM_LGIDataset(DownstreamGDs):
+    def __init__(
+            self,
+            root: str | Path,
+            filename: str | Path,
+            split: str,
+            hash_code: str,
+            transform: Optional[Callable] = None,
+            pre_transform: Optional[Callable] = None,
+            force_reload: bool = False,
+            schema: Schema = object,
+            **dataset_args: dict[str, Any],
+    ):
+        """
+        Initialize the dataset for downstream tasks with the given parameters.
+
+        Args:
+            root: The root directory to store the processed data
+            filename: The filename of the data to process
+            split: The split to use, e.g., train, val, test
+            hash_code: The hash code to use for the processed data
+            transform: The transform to apply to the data
+            pre_transform: The pre-transform to apply to the data
+            **dataset_args: Additional arguments to pass to the dataset
+        """
+        super().__init__(root=root, filename=filename, split=split, hash_code=hash_code, schema=schema, transform=transform,
+                         pre_transform=pre_transform, force_reload=force_reload, **dataset_args)
+    
+    def process(self) -> None:
+        """Process the data and store it."""
+        if str(self.filename).endswith(".pkl"):
+            self.process_pkl()
+        elif str(self.filename)[-4:] in {".csv", ".tsv"}:
+            self.process_csv(sep="," if str(self.filename)[-3] == "c" else "\t")
+
+    def process_pkl(self) -> None:
+        with open(self.filename, "rb") as f:
+            inter, lectin_map, glycan_map = pickle.load(f)
+
+        # Load the glycan storage to speed up the preprocessing
+        gs = GlycanStorage(Path(self.root).parent)
+        data = []
+        for i, (lectin_id, glycan_id, value, split) in tqdm(enumerate(inter)):
+            if split != self.split:
+                continue
+            d = gs.query(glycan_map[glycan_id])
+            if d is None:
+                continue
+            d["aa_seq"] = lectin_map[lectin_id]
+            d["y"] = torch.tensor([value])
+            d["ID"] = i
+            data.append(d)
+
+        gs.close()
+        self.process_(data, path_idx=self.splits[self.split], final=True)
+
+    def process_csv(self, sep: str) -> None:
+        DATA_BASE = self.filename.parent
+
+        inter = pd.read_csv(self.filename, sep=sep)
+        
+        lectins = pd.read_csv(DATA_BASE / "lectins.csv")
+        lectin_map = {x: y for x, y in lectins[["ID", "aa_seq"]].values}
+        inter["aa_seq"] = inter["lectin"].map(lectin_map)
+
+        glycans = pd.read_csv(DATA_BASE / "glycans.csv")
+        glycan_map = {x: y for x, y in glycans[["ID", "IUPAC"]].values}
+        inter["IUPAC"] = inter["glycan"].map(glycan_map)
+
+        gs = GlycanStorage(Path(self.root).parent)
+        data = []
+        for i, (_, row) in tqdm(enumerate(inter.iterrows())):
+            split = getattr(row, "split", "train")
+            if split != self.split:
+                continue
+            d = gs.query(row["IUPAC"])
+            if d is None:
+                continue
+            d["aa_seq"] = row["aa_seq"]
+            d["y"] = torch.tensor([getattr(row, "y", 0)], dtype=torch.float)
+            d["ID"] = i
+            data.append(d)
+        
         gs.close()
         self.process_(data, path_idx=self.splits[self.split], final=True)
