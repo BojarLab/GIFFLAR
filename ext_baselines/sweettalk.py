@@ -102,8 +102,11 @@ def train_model(model, criterion, optimizer, scheduler, metrics, datamodule, num
                 preds = torch.softmax(preds, dim=1)
             else:
                 labels = labels.float()
-            
-            loss = criterion(preds, labels)
+            if not isinstance(criterion, nn.CosineEmbeddingLoss):
+                loss = criterion(preds, labels)
+            else:
+                target = torch.ones(preds.shape[0]).cuda()
+                loss = criterion(preds, labels, target)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -121,12 +124,11 @@ def train_model(model, criterion, optimizer, scheduler, metrics, datamodule, num
                 preds = torch.stack([model(glycan) for glycan in batch["IUPAC"]])
                 labels = batch.y.squeeze().cuda() if hasattr(batch, "y") else batch.y_oh.cuda()
                 
-                if isinstance(criterion, nn.CrossEntropyLoss):
-                    preds = torch.softmax(preds, dim=1)
+                if not isinstance(criterion, nn.CosineEmbeddingLoss):
+                    loss = criterion(preds, labels)
                 else:
-                    labels = labels.float()
-                
-                loss = criterion(preds, labels)
+                    target = torch.ones(preds.shape[0]).cuda()
+                    loss = criterion(preds, labels, target)
                 val_losses.append(loss.item())
                 val_metrics.update(preds.detach().cpu(), labels.detach().cpu().long())
         val_losses.append(np.mean(val_losses))
@@ -172,14 +174,16 @@ def main(base: Path, task: str):
         config = {"name": "Taxonomy_Kingdom", "task": "classification", "num_classes": 13}
         metrics = get_metrics("multilabel", n_outputs=13)
     elif task == "spectrum":
-        config = {"name": "Spectrum", "task": "regression", "num_classes": 2048}
-        metrics = get_metrics("regression", n_outputs=2048)
+        config = {"name": "Spectrum", "task": "spectrum", "num_classes": 2048}
+        metrics = get_metrics("spectrum", n_outputs=2048)
     else:
         raise ValueError(f"Unknown task {task}")
 
-    data_config = get_dataset(config, "/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256")
+    data_config = get_dataset(config, "/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256")
+    # data_config = get_dataset(config, "/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256")
     datamodule = DownstreamGDM(
-        root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256", 
+        root="/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256",
+        # root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256", 
         filename=data_config["filepath"], 
         hash_code="e2301aa9",
         batch_size=64, 
@@ -195,18 +199,23 @@ def main(base: Path, task: str):
     model = RNN(input_size=len(libr) + 1, hidden_size=256, num_classes=data_config["num_classes"])
     print("SweetTalk has", sum(p.numel() for p in model.parameters() if p.requires_grad), "trainable parameters")
     model.cuda()
-    criterion = nn.CrossEntropyLoss() if task == "glycosylation" else nn.BCEWithLogitsLoss()
+    if task == "glycosylation":
+        criterion = nn.CrossEntropyLoss()
+    elif task == "spectrum":
+        criterion = nn.CosineEmbeddingLoss()
+    else:
+        criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
     model, train_metrics, val_metrics = train_model(
-        model, 
-        criterion, 
-        optimizer, 
-        scheduler, 
+        model,
+        criterion,
+        optimizer,
+        scheduler,
         metrics,
         datamodule,
-        num_epochs=2, 
-        padding=False
+        num_epochs=50,
+        padding=False,
     )
     torch.save(model.state_dict(), version / "model.pth")
     pd.concat([pd.DataFrame(train_metrics), pd.DataFrame(val_metrics)], axis=1).to_csv(version / "metrics.csv", index=False)
