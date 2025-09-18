@@ -9,6 +9,8 @@ from torch_geometric.data import HeteroData
 from experiments.protein_encoding import ENCODER_MAP, EMBED_SIZES
 from gifflar.data.hetero import HeteroDataBatch
 from gifflar.model.base import GlycanGIN
+from gifflar.model.baselines.gnngly import GNNGLY
+from gifflar.model.baselines.mlp import MLP
 from gifflar.model.baselines.sweetnet import SweetNetLightning
 from gifflar.model.downstream import DownstreamGGIN
 from gifflar.model.glylm import GlycanLM
@@ -19,6 +21,8 @@ THRESHOLD = 0.5
 
 GLYCAN_ENCODERS = {
     "gifflar": DownstreamGGIN,
+    "gnngly": GNNGLY,
+    "mlp": MLP,
     "sweetnet": SweetNetLightning,
     "glylm": GlycanLM,
 }
@@ -110,7 +114,7 @@ class LGI_Model(LightningModule):
         """
         fwd_dict = self(batch)
         fwd_dict["labels"] = batch["y"]
-        fwd_dict["preds"] = fwd_dict["preds"].reshape(-1)
+        fwd_dict["preds"] = fwd_dict["preds"].reshape(-1).float()
         if dataloader_idx == 0:
             fwd_dict["loss"] = self.loss(fwd_dict["preds"], fwd_dict["labels"])
             self.metrics[stage].update(fwd_dict["preds"], fwd_dict["labels"])

@@ -171,6 +171,9 @@ def main(base: Path, task: str):
     elif task == "Taxonomy_Kingdom":
         config = {"name": "Taxonomy_Kingdom", "task": "classification", "num_classes": 13}
         metrics = get_metrics("multilabel", n_outputs=13)
+    elif task == "spectrum":
+        config = {"name": "Spectrum", "task": "regression", "num_classes": 2048}
+        metrics = get_metrics("regression", n_outputs=2048)
     else:
         raise ValueError(f"Unknown task {task}")
 
@@ -202,7 +205,7 @@ def main(base: Path, task: str):
         scheduler, 
         metrics,
         datamodule,
-        num_epochs=100, 
+        num_epochs=2, 
         padding=False
     )
     torch.save(model.state_dict(), version / "model.pth")
@@ -211,6 +214,6 @@ def main(base: Path, task: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", type=Path, required=True)
-    parser.add_argument("--task", type=str, required=True, choices=["glycosylation", "tissue", "Taxonomy_Kingdom"])
+    parser.add_argument("--task", type=str, required=True, choices=["glycosylation", "tissue", "Taxonomy_Kingdom", "spectrum"])
     args = parser.parse_args()
     main(args.base, args.task)

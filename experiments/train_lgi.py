@@ -54,7 +54,7 @@ def unfold_config(config: dict):
 
 
 def train(contrastive: bool = False, ckpt_file: Path | None = None, **kwargs):
-    kwargs["pre-transforms"] = {"GIFFLARTransform": "", "SweetNetTransform": ""}
+    # kwargs["pre-transforms"] = {"GIFFLARTransform": "", "SweetNetTransform": ""}
     kwargs["hash"] = hash_dict(kwargs["pre-transforms"])
     seed_everything(kwargs["seed"])
 

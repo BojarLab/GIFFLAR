@@ -7,7 +7,7 @@ from glycowork.ml.model_training import train_model, SAM
 from glycowork.ml.models import prep_model
 
 from gifflar.data.modules import LGI_GDM
-from gifflar.data.datasets import GlycanOnDiskDataset
+from gifflar.data.datasets_lgi import GlycanOnDiskDataset
 from experiments.protein_encoding import ENCODER_MAP
 from gifflar.model.utils import LectinStorage
 
