@@ -98,10 +98,13 @@ def train_model(model, criterion, optimizer, scheduler, metrics, datamodule, num
             preds = torch.stack([model(glycan) for glycan in batch["IUPAC"]])
             labels = batch.y.squeeze().cuda() if hasattr(batch, "y") else batch.y_oh.cuda()
             
-            if isinstance(criterion, nn.CrossEntropyLoss):
+            if isinstance(criterion, nn.CosineEmbeddingLoss):
+                preds = torch.sigmoid(preds)
+            elif isinstance(criterion, nn.CrossEntropyLoss):
                 preds = torch.softmax(preds, dim=1)
             else:
                 labels = labels.float()
+            
             if not isinstance(criterion, nn.CosineEmbeddingLoss):
                 loss = criterion(preds, labels)
             else:
@@ -111,7 +114,7 @@ def train_model(model, criterion, optimizer, scheduler, metrics, datamodule, num
             loss.backward()
             optimizer.step()
             running_loss.append(loss.item())
-            train_metrics.update(preds.detach().cpu(), labels.detach().cpu().long())
+            train_metrics.update(preds.detach().cpu(), labels.detach().cpu())
         train_losses.append(np.mean(running_loss))
         train_list.append({k: v.item() for k, v in train_metrics.compute().items()})
         train_list[-1]["train/loss"] = train_losses[-1]
@@ -130,7 +133,7 @@ def train_model(model, criterion, optimizer, scheduler, metrics, datamodule, num
                     target = torch.ones(preds.shape[0]).cuda()
                     loss = criterion(preds, labels, target)
                 val_losses.append(loss.item())
-                val_metrics.update(preds.detach().cpu(), labels.detach().cpu().long())
+                val_metrics.update(preds.detach().cpu(), labels.detach().cpu())
         val_losses.append(np.mean(val_losses))
         val_list.append({k: v.item() for k, v in val_metrics.compute().items()})
         val_list[-1]["val/loss"] = val_losses[-1]
@@ -179,11 +182,11 @@ def main(base: Path, task: str):
     else:
         raise ValueError(f"Unknown task {task}")
 
-    data_config = get_dataset(config, "/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256")
-    # data_config = get_dataset(config, "/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256")
+    # data_config = get_dataset(config, "/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256")
+    data_config = get_dataset(config, "/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256")
     datamodule = DownstreamGDM(
-        root="/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256",
-        # root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256", 
+        # root="/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256",
+        root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256", 
         filename=data_config["filepath"], 
         hash_code="e2301aa9",
         batch_size=64, 

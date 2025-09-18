@@ -238,7 +238,7 @@ def get_metrics(
     """
     if task == "spectrum":
         m = MetricCollection([
-            CosineSimilarity(),
+            CosineSimilarity(reduction="mean"),
         ])
     elif task == "regression":
         m = MetricCollection([
