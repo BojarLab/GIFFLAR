@@ -1,0 +1,40 @@
+seed: 42
+root_dir: /scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256
+logs_dir: /scratch/chair_kalinina/s8rojoer/GIFFLAR/logs_new_256
+origin: /scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256/lgi_random_150k.csv
+pre-transforms:
+  GIFFLARTransform:
+  GNNGLYTransform:
+  ECFPTransform:
+  SweetNetTransform:
+model:
+  glycan_encoder:
+    - name: mlp
+      feat_dim: 1024
+      hidden_dim: 1024
+      output_dim: 1024
+      num_layers: 1
+    - name: sweetnet
+      feat_dim: 128
+      hidden_dim: 256
+      num_layers: 16
+      suffix:
+    - name: gnngly
+      feat_dim: 128
+      hidden_dim: 256
+      num_layers: 8
+      suffix:
+    - name: gifflar
+      feat_dim: 128
+      hidden_dim: 256
+      num_layers: 8
+      pooling: global_mean
+      suffix:
+  lectin_encoder:
+    - name: ESM
+      layer_num: 33
+  batch_size: 256
+  epochs: 50
+  learning_rate: 0.001
+  optimizer: Adam
+

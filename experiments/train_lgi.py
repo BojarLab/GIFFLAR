@@ -74,7 +74,7 @@ def train(contrastive: bool = False, ckpt_file: Path | None = None, **kwargs):
     )
     add_validation = []
     add_tasks = []
-    for entry in kwargs["add_valid"]:
+    for entry in kwargs.get("add_valid", []):
         add_validation.append(LGI_GDM(
             root=kwargs["root_dir"], filename=entry["path"], hash_code=kwargs["hash"],
             batch_size=kwargs["model"].get("batch_size", 1), transform=None, num_workers=0,
