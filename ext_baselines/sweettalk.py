@@ -173,7 +173,7 @@ def main(base: Path, task: str):
         metrics = get_metrics("multilabel", n_outputs=13)
     elif task == "spectrum":
         config = {"name": "Spectrum", "task": "regression", "num_classes": 2048}
-        metrics = get_metrics("regression", n_outputs=2048)
+        metrics = get_metrics("spectrum", n_outputs=2048)
     else:
         raise ValueError(f"Unknown task {task}")
 
@@ -205,7 +205,7 @@ def main(base: Path, task: str):
         scheduler, 
         metrics,
         datamodule,
-        num_epochs=2, 
+        num_epochs=50, 
         padding=False
     )
     torch.save(model.state_dict(), version / "model.pth")
