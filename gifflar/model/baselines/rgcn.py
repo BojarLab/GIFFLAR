@@ -13,8 +13,8 @@ class RGCN(DownstreamGGIN):
             self,
             feat_dim: int,
             hidden_dim: int,
-            output_dim: int,
-            task: Literal["regression", "classification", "multilabel", "spectrum"],
+            output_dim: int = 1,
+            task: Literal["regression", "classification", "multilabel", "spectrum"] | None = None,
             num_layers: int = 3,
             batch_size: int = 32,
             pre_transform_args: Optional[dict] = None,
@@ -57,7 +57,9 @@ class RGCN(DownstreamGGIN):
             node_embeds = conv(node_embeds, batch["rgcn_edge_index"], batch["rgcn_edge_type"])
         
         graph_embed = self.pooling(node_embeds, batch["rgcn_batch"])
-        pred = self.head(graph_embed)
+        pred = None
+        if self.task is not None:
+            pred = self.head(graph_embed)
         return {
                 "node_embed": node_embeds,
             "graph_embed": graph_embed,

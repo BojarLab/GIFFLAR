@@ -31,7 +31,7 @@ class GlycanDataModule(LightningDataModule):
         """
         super().__init__()
         self.batch_size = batch_size
-        self.num_workers = 64  # 32  # num_workers
+        self.num_workers = 32  # num_workers
 
     def train_dataloader(self) -> DataLoader:
         """

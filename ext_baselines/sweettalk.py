@@ -182,11 +182,11 @@ def main(base: Path, task: str):
     else:
         raise ValueError(f"Unknown task {task}")
 
-    # data_config = get_dataset(config, "/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256")
-    data_config = get_dataset(config, "/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256")
+    data_config = get_dataset(config, "/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256")
+    # data_config = get_dataset(config, "/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256")
     datamodule = DownstreamGDM(
-        # root="/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256",
-        root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256", 
+        root="/scratch/chair_kalinina/s8rojoer/GIFFLAR/data_new_256",
+        # root="/scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256", 
         filename=data_config["filepath"], 
         hash_code="e2301aa9",
         batch_size=64, 
