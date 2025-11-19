@@ -59,7 +59,7 @@ class RGCN(DownstreamGGIN):
         graph_embed = self.pooling(node_embeds, batch["rgcn_batch"])
         pred = self.head(graph_embed)
         return {
-                "node_embed": node_embeds,
+            "node_embed": node_embeds,
             "graph_embed": graph_embed,
             "preds": pred,
         }

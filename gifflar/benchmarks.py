@@ -118,6 +118,9 @@ def get_taxonomic_level(
         Path to the TSV file storing the processed dataset.
     """
     if not (p := (root / Path(f"taxonomy_{level}.tsv"))).exists():
+        pd.read_csv("/home/rjo21/Desktop/GlycoGym_data/taxonomy_" + level + ".tsv", sep="\t").to_csv(p, sep="\t", index=False)
+    return p
+    if not (p := (root / Path(f"taxonomy_{level}.tsv"))).exists():
         # Read in the taxonomy data
         tax = taxonomy[["glycan", level]]
 
@@ -341,12 +344,12 @@ def get_spectrum(root: Path | str) -> Path:
     Returns:
         The filepath of the processed spectrum data.
     """
-    suffix = "_small"
+    suffix = "" # "_small"
     root = Path(root)
     if not (p := root / f"spectrum{suffix}.tsv").exists():
         # df = pd.read_csv(Path("/") / "scratch" / "SCRATCH_SAS" / "roman" / "Gothenburg" / "GIFFLAR" / "spectra_data" / f"spectrum_2048{suffix}.tsv", sep="\t")
-        # df = pd.read_csv(Path("/") / "scratch" / "spectra_data" / f"spectrum_2048{suffix}.tsv", sep="\t")
-        df = pd.read_csv(Path("/") / "scratch" / "chair_kalinina" / "s8rojoer" / "GIFFLAR" / "data_new_256" / f"spectrum_2048{suffix}.tsv", sep="\t")
+        df = pd.read_csv(Path("/") / "scratch" / "spectra_data" / f"spectrum_2048{suffix}.tsv", sep="\t")
+        # df = pd.read_csv(Path("/") / "scratch" / "chair_kalinina" / "s8rojoer" / "GIFFLAR" / "data_new_256" / f"spectrum_2048{suffix}.tsv", sep="\t")
         df.to_csv(p, sep="\t", index=False)
     return p
 

@@ -1,0 +1,70 @@
+seed: 42
+root_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/data_new_256
+logs_dir: /scratch/SCRATCH_SAS/roman/Gothenburg/GIFFLAR/logs_new_256
+datasets:
+  - name: Taxonomy_Domain
+    task: multilabel
+  - name: Taxonomy_Phylum
+    task: multilabel
+  - name: Taxonomy_Class
+    task: multilabel
+  - name: Taxonomy_Order
+    task: multilabel
+  # - name: Taxonomy_Family
+  #   task: multilabel
+  # - name: Taxonomy_Genus
+  #   task: multilabel
+  # - name: Taxonomy_Species
+  #   task: multilabel
+pre-transforms:
+  GIFFLARTransform:
+  GNNGLYTransform:
+  ECFPTransform:
+  SweetNetTransform:
+  RGCNTransform:
+  RandomWalkPE:
+    dim: 20
+    individual: False
+  LaplacianPE:
+    dim: 20
+    individual: False
+model:
+  - name: sweetnet
+    feat_dim: 128
+    hidden_dim: 256
+    batch_size: 32
+    num_layers: 16
+    epochs: 50
+    patience: 30
+    learning_rate: 0.001
+    optimizer: Adam
+    suffix:
+  - name: gnngly
+    feat_dim: 128
+    hidden_dim: 256
+    batch_size: 32
+    num_layers: 8
+    epochs: 50
+    patience: 30
+    learning_rate: 0.001
+    optimizer: Adam
+    suffix:
+  - name: rgcn
+    feat_dim: 128
+    hidden_dim: 128
+    batch_size: 32
+    num_layers: 8
+    epochs: 50
+    learning_rate: 0.001
+    optimizer: Adam
+    suffix:
+  - name: gifflar
+    feat_dim: 128
+    hidden_dim: 256
+    batch_size: 32
+    num_layers: 8
+    epochs: 50
+    learning_rate: 0.001
+    optimizer: Adam
+    pooling: global_mean
+    suffix: 
